@@ -1,6 +1,6 @@
 use rumqttc::{MqttOptions, AsyncClient, QoS, Event, Packet};
 use serde::{Serialize, Deserialize};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use std::time::Duration;
 use sqlx::sqlite::{SqlitePool, SqliteConnectOptions};
 use std::str::FromStr;
@@ -12,7 +12,23 @@ pub struct MqttMessage {
     pub timestamp: u64,
 }
 
-pub fn start_client<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct MqttStatus {
+    pub status: String,
+}
+
+pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
+    let mut mqttoptions = MqttOptions::new("rumqtt-client", "localhost", 9883);
+    mqttoptions.set_keep_alive(Duration::from_secs(5));
+
+    let (client, mut eventloop) = AsyncClient::new(mqttoptions, 50);
+
+    // Register client to state so it can be accessed by commands
+    app.manage(client.clone());
+
+    let app_handle = app.clone();
+    let client_clone = client.clone();
+
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(2)).await;
         // Since we are accessing the same file, we can just connect to it.
@@ -43,19 +59,10 @@ pub fn start_client<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
         }
         let pool = pool.unwrap();
 
-        let mut mqttoptions = MqttOptions::new("rumqtt-client", "localhost", 9883);
-
-        mqttoptions.set_keep_alive(Duration::from_secs(5));
-
-        let (client, mut eventloop) = AsyncClient::new(mqttoptions, 50);
-        
-        // Retry subscription logic could be added here
-        if let Err(e) = client.subscribe("#", QoS::AtMostOnce).await {
+        // Subscribe to all topics
+        if let Err(e) = client_clone.subscribe("#", QoS::AtMostOnce).await {
              println!("Failed to subscribe: {}", e);
-             // ここで return せず、再接続ロジックを入れるのが理想ですが、
-             // まずはログを出して終了でOK。ただしブローカー起動待ちを入れると安定します。
              tokio::time::sleep(Duration::from_secs(1)).await;
-             return;
         }
 
         loop {
@@ -69,7 +76,7 @@ pub fn start_client<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
                     println!("Received = {:?}", message);
                     
                     // Emit to frontend
-                    if let Err(e) = app.emit("mqtt-message", &message) {
+                    if let Err(e) = app_handle.emit("mqtt-message", &message) {
                         println!("Failed to emit message: {}", e);
                     }
                     
@@ -87,13 +94,30 @@ pub fn start_client<R: tauri::Runtime>(app: tauri::AppHandle<R>) {
                         println!("Failed to insert message into database: {}", e);
                     }
                 }
+                Ok(Event::Incoming(Packet::ConnAck(_))) => {
+                    println!("MQTT Connected!");
+                    let status = MqttStatus {
+                        status: "connected".to_string(),
+                    };
+                    if let Err(e) = app_handle.emit("mqtt-status", &status) {
+                        println!("Failed to emit status: {}", e);
+                    }
+                }
                 Ok(_) => {}
                 Err(e) => {
                     println!("Error = {:?}", e);
+                    let status = MqttStatus {
+                        status: "disconnected".to_string(),
+                    };
+                    if let Err(e) = app_handle.emit("mqtt-status", &status) {
+                        println!("Failed to emit status: {}", e);
+                    }
                     tokio::time::sleep(Duration::from_secs(3)).await;
                 }
 
             }
         }
     });
+
+    Ok(())
 }

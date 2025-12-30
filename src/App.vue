@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useMqttStore } from './stores/useMqttStore';
 import { storeToRefs } from 'pinia';
 
 const mqttStore = useMqttStore();
 const { dataMap, isConnected } = storeToRefs(mqttStore);
+
+const publishTopic = ref('test/topic');
+const publishPayload = ref('Hello Tauri!');
+
+const handlePublish = async () => {
+  if (!publishTopic.value || !publishPayload.value) return;
+  await mqttStore.publishMessage(publishTopic.value, publishPayload.value);
+};
 
 onMounted(() => {
   mqttStore.setupListener();
@@ -27,6 +35,28 @@ onMounted(() => {
 
     <!-- Main Content -->
     <main class="flex-1 p-4 overflow-y-auto bg-base-100">
+      <!-- Publish Test Section -->
+      <div class="card bg-base-200 shadow-xl mb-6">
+        <div class="card-body">
+          <h2 class="card-title">Publish Test</h2>
+          <div class="flex gap-4 items-end flex-wrap">
+            <div class="form-control w-full max-w-xs">
+              <label class="label">
+                <span class="label-text">Topic</span>
+              </label>
+              <input v-model="publishTopic" type="text" placeholder="Topic" class="input input-bordered w-full max-w-xs" />
+            </div>
+            <div class="form-control w-full max-w-xs">
+              <label class="label">
+                <span class="label-text">Payload</span>
+              </label>
+              <input v-model="publishPayload" type="text" placeholder="Payload" class="input input-bordered w-full max-w-xs" />
+            </div>
+            <button class="btn btn-primary" @click="handlePublish">Send</button>
+          </div>
+        </div>
+      </div>
+
       <div v-if="dataMap.size === 0" class="text-center">
         <p>Waiting for data...</p>
       </div>

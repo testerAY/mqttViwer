@@ -2,6 +2,7 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod broker;
 mod mqtt;
+mod commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -30,11 +31,11 @@ pub fn run() {
         )
         .setup(|app| {
             let handle = app.handle().clone();
-            mqtt::start_client(handle);
+            mqtt::init(&handle).expect("Failed to initialize MQTT client");
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![])
+        .invoke_handler(tauri::generate_handler![commands::publish_message])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
