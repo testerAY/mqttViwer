@@ -1,18 +1,30 @@
-use std::thread;
 use std::collections::HashMap;
 use rumqttd::{Broker, Config};
+use tracing::{info, error};
 
-pub fn start_broker() {
-    thread::spawn(|| {
+// Configuration Constants
+const MAX_CONNECTIONS: usize = 100;
+const MAX_OUTGOING_PACKET_COUNT: u64 = 2048;
+const MAX_SEGMENT_SIZE: usize = 1048576;
+const MAX_SEGMENT_COUNT: usize = 10;
+const CONNECTION_TIMEOUT_MS: u16 = 60000;
+const MAX_PAYLOAD_SIZE: usize = 2048;
+const MAX_INFLIGHT_COUNT: usize = 100;
+
+pub async fn start_broker() {
+    tauri::async_runtime::spawn_blocking(move || {
         let mut config = Config::default();
         config.id = 0;
-        config.console.listen = "127.0.0.1:0".parse().unwrap();
+        
+        if let Some(ref mut c) = config.console {
+            c.listen = "127.0.0.1:0".parse().unwrap();
+        }
 
         let mut router_config = rumqttd::RouterConfig::default();
-        router_config.max_connections = 100; // 100接続まで許可
-        router_config.max_outgoing_packet_count = 1024;
-        router_config.max_segment_size = 1048576;
-        router_config.max_segment_count = 10;
+        router_config.max_connections = MAX_CONNECTIONS;
+        router_config.max_outgoing_packet_count = MAX_OUTGOING_PACKET_COUNT;
+        router_config.max_segment_size = MAX_SEGMENT_SIZE;
+        router_config.max_segment_count = MAX_SEGMENT_COUNT;
         config.router = router_config;
         
         let mut v4 = HashMap::new();
@@ -21,24 +33,24 @@ pub fn start_broker() {
             listen: "127.0.0.1:9883".parse().unwrap(),
             next_connection_delay_ms: 10,
             connections: rumqttd::ConnectionSettings {
-                connection_timeout_ms: 60000,
-                max_payload_size: 2048,
-                max_inflight_count: 100,
+                connection_timeout_ms: CONNECTION_TIMEOUT_MS,
+                max_payload_size: MAX_PAYLOAD_SIZE,
+                max_inflight_count: MAX_INFLIGHT_COUNT,
                 auth: None,
+                external_auth: None,
                 dynamic_filters: true,
             },
             tls: None,
         });
         
-        config.v4 = v4;
+        config.v4 = Some(v4);
 
         let mut broker = Broker::new(config);
         
-        println!("Broker starting on 127.0.0.1:9883...");
+        info!("Broker starting on 127.0.0.1:9883...");
         
-        // start() がエラーを返した場合、ここで原因が表示されます
         if let Err(e) = broker.start() {
-             eprintln!("Broker critical failure: {:?}", e); // println! -> eprintln! に変更
+             error!("Broker critical failure: {:?}", e);
         }
     });
 }

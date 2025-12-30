@@ -1,6 +1,7 @@
 use sqlx::sqlite::{SqlitePool, SqliteConnectOptions};
 use std::str::FromStr;
 use tauri::Manager;
+use tracing::error;
 
 mod broker;
 mod mqtt;
@@ -9,12 +10,24 @@ mod commands;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt::init();
-    broker::start_broker();
 
     tauri::Builder::default()
         .setup(|app| {
-            let db_url = "sqlite:app_data.db";
-            let options = SqliteConnectOptions::from_str(db_url)
+            // Start Broker asynchronously
+            tauri::async_runtime::spawn(async {
+                broker::start_broker().await;
+            });
+
+            // App Data ディレクトリ配下に保存
+            let app_data_dir = app.path().app_data_dir().expect("failed to get app data dir");
+            // ディレクトリがなければ作成
+            if !app_data_dir.exists() {
+                std::fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
+            }
+            let db_path = app_data_dir.join("app_data.db");
+            let db_url = format!("sqlite:{}", db_path.to_string_lossy());
+
+            let options = SqliteConnectOptions::from_str(&db_url)
                 .unwrap()
                 .create_if_missing(true);
 
@@ -30,16 +43,14 @@ pub fn run() {
                         )")
                         .execute(&pool)
                         .await {
-                            eprintln!("Failed to create tables: {}", e);
-                            // Even if table creation fails, we return the pool, 
-                            // though subsequent inserts might fail (gracefully handled).
+                            error!("Failed to create tables: {}", e);
                             Some(pool)
                         } else {
                             Some(pool)
                         }
                     }
                     Err(e) => {
-                        eprintln!("Failed to connect to DB: {}", e);
+                        error!("Failed to connect to DB: {}", e);
                         None
                     }
                 }
