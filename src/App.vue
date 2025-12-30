@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useMqttStore } from './stores/useMqttStore';
+import { useDashboardStore } from './stores/useDashboardStore';
 import { storeToRefs } from 'pinia';
+import DashboardGrid from './components/dashboard/DashboardGrid.vue';
 
 const mqttStore = useMqttStore();
-const { dataMap, isConnected } = storeToRefs(mqttStore);
+const { isConnected } = storeToRefs(mqttStore);
+
+const dashboardStore = useDashboardStore();
+const { isEditing } = storeToRefs(dashboardStore);
+const { toggleEditMode } = dashboardStore;
 
 const publishTopic = ref('test/topic');
 const publishPayload = ref('Hello Tauri!');
@@ -22,11 +28,17 @@ onMounted(() => {
 <template>
   <div class="flex flex-col h-screen" data-theme="dark">
     <!-- Header -->
-    <header class="navbar bg-base-300 text-neutral-content">
+    <header class="navbar bg-base-300 text-neutral-content z-50">
       <div class="flex-1">
         <a class="btn btn-ghost text-xl">MQTT Web Viewer</a>
       </div>
-      <div class="flex-none">
+      <div class="flex-none flex items-center gap-4">
+        <div class="form-control">
+          <label class="label cursor-pointer gap-2">
+            <span class="label-text text-neutral-content">Edit Mode</span> 
+            <input type="checkbox" class="toggle toggle-primary" :checked="isEditing" @change="toggleEditMode" />
+          </label>
+        </div>
         <div class="badge" :class="isConnected ? 'badge-success' : 'badge-error'">
           {{ isConnected ? 'Connected' : 'Disconnected' }}
         </div>
@@ -57,21 +69,8 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-if="dataMap.size === 0" class="text-center">
-        <p>Waiting for data...</p>
-      </div>
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <!-- Value Display Widget -->
-        <div v-for="[topic, message] in dataMap.entries()" :key="topic" class="card bg-base-200 shadow-xl">
-          <div class="card-body">
-            <h2 class="card-title truncate">{{ topic }}</h2>
-            <p class="text-4xl font-bold">{{ message.payload }}</p>
-            <div class="text-xs text-gray-500">
-              {{ new Date(message.timestamp * 1000).toLocaleString() }}
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- Dashboard Grid -->
+      <DashboardGrid />
     </main>
   </div>
 </template>

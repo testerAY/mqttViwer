@@ -11,13 +11,13 @@
   - [x] 動作確認
 
 ## Phase 2: Dashboard UI基盤の構築
-- [ ] **Frontend:** `grid-layout-plus` の導入
-- [ ] **Frontend:** ダッシュボードコンポーネントの作成
-  - [ ] 閲覧モード/編集モードのステート管理
-  - [ ] グリッドレイアウトの実装 (`GridContainer.vue`)
-- [ ] **Frontend:** ウィジェット管理システム
-  - [ ] `WidgetHost.vue` (動的コンポーネントローダー) の作成
-  - [ ] ウィジェット設定の型定義 (`WidgetConfig` 等)
+- [x] **Frontend:** `grid-layout-plus` の導入
+- [x] **Frontend:** ダッシュボードコンポーネントの作成
+  - [x] 閲覧モード/編集モードのステート管理
+  - [x] グリッドレイアウトの実装 (`DashboardGrid.vue`)
+- [x] **Frontend:** ウィジェット管理システム
+  - [x] `WidgetHost.vue` (動的コンポーネントローダー) の作成
+  - [x] ウィジェット設定の型定義 (`WidgetConfig` 等)
 
 ## Phase 3: 基本ウィジェットの実装
 - [ ] **Frontend:** 数値表示ウィジェット (Value Display)
