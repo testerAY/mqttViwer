@@ -66,11 +66,21 @@ export const useMqttStore = defineStore('mqtt', () => {
         }, 1000);
     };
 
+    const getHistory = async (topicFilter?: string, limit?: number): Promise<MqttMessage[]> => {
+        try {
+            return await invoke<MqttMessage[]>('get_history', { topicFilter, limit });
+        } catch (error) {
+            console.error('Failed to get history:', error);
+            return [];
+        }
+    };
+
     return {
         dataMap,
         isConnected,
         setupListener,
         publishMessage,
         startSimulation,
+        getHistory,
     };
 });

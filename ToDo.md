@@ -28,8 +28,10 @@
 - [x] **Frontend:** ゲージウィジェット (Gauge)
 
 ## Phase 4: データ履歴と設定管理
-- [ ] **Backend:** 履歴データ取得コマンド (`get_history`) の実装
-  - [ ] SQLiteからの範囲検索と間引き処理
+- [x] **Backend:** 履歴データ取得コマンド (`get_history`) の実装
+  - [x] SQLiteからの範囲検索と間引き処理
+  - [x] DB接続エラーハンドリングの強化 (アプリクラッシュ回避)
+  - [x] `tauri-plugin-sql` の廃止と `sqlx` によるテーブル管理への移行
 - [ ] **Frontend:** グラフへの履歴データ反映
 - [ ] **System:** レイアウト設定の保存・読み込み
   - [ ] Backend: `layout.json` のファイルI/O

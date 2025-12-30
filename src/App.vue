@@ -20,6 +20,12 @@ const handlePublish = async () => {
   await mqttStore.publishMessage(publishTopic.value, publishPayload.value);
 };
 
+const testHistory = async () => {
+  console.log('Fetching history...');
+  const history = await mqttStore.getHistory();
+  console.log('History:', history);
+};
+
 onMounted(() => {
   mqttStore.setupListener();
 });
@@ -33,6 +39,7 @@ onMounted(() => {
         <a class="btn btn-ghost text-xl">MQTT Web Viewer</a>
       </div>
       <div class="flex-none flex items-center gap-4">
+        <button class="btn btn-xs btn-outline btn-warning" @click="testHistory">Test History</button>
         <button class="btn btn-xs btn-outline btn-info" @click="mqttStore.startSimulation()">Simulate Data</button>
         <div class="form-control">
           <label class="label cursor-pointer gap-2">
