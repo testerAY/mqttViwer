@@ -2,14 +2,14 @@ use rumqttc::{MqttOptions, AsyncClient, QoS, Event, Packet};
 use serde::{Serialize, Deserialize};
 use tauri::{Emitter, Manager};
 use std::time::Duration;
-use sqlx::sqlite::{SqlitePool, SqliteConnectOptions};
-use std::str::FromStr;
+use sqlx::sqlite::SqlitePool;
+use sqlx::FromRow;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, FromRow)]
 pub struct MqttMessage {
     pub topic: String,
     pub payload: String,
-    pub timestamp: u64,
+    pub timestamp: i64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -26,38 +26,16 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn 
     // Register client to state so it can be accessed by commands
     app.manage(client.clone());
 
+    // Get DB pool from state
+    let pool_state = app.state::<Option<SqlitePool>>();
+    let pool = pool_state.inner().clone();
+
     let app_handle = app.clone();
     let client_clone = client.clone();
 
     tauri::async_runtime::spawn(async move {
+        // Wait for broker to start up completely
         tokio::time::sleep(Duration::from_secs(2)).await;
-        // Since we are accessing the same file, we can just connect to it.
-        // Retry connection a few times if needed.
-        let db_url = "sqlite:app_data.db";
-        
-        let mut pool = None;
-        for _ in 0..5 {
-             let options = SqliteConnectOptions::from_str(db_url)
-                 .unwrap()
-                 .create_if_missing(true);
-                 
-             match SqlitePool::connect_with(options).await {
-                Ok(p) => {
-                    pool = Some(p);
-                    break;
-                }
-                Err(e) => {
-                    println!("Failed to connect to DB: {}, retrying...", e);
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                }
-             }
-        }
-        
-        if pool.is_none() {
-             println!("Could not connect to database after retries. MQTT Client will not save data.");
-             return; 
-        }
-        let pool = pool.unwrap();
 
         // Subscribe to all topics
         if let Err(e) = client_clone.subscribe("#", QoS::AtMostOnce).await {
@@ -71,7 +49,7 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn 
                     let message = MqttMessage {
                         topic: publish.topic.to_string(),
                         payload: String::from_utf8_lossy(&publish.payload).to_string(),
-                        timestamp: chrono::Utc::now().timestamp() as u64,
+                        timestamp: chrono::Utc::now().timestamp(),
                     };
                     println!("Received = {:?}", message);
                     
@@ -81,17 +59,19 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn 
                     }
                     
                     // Insert into database via sqlx
-                    let result = sqlx::query(
-                        "INSERT INTO messages (topic, payload, timestamp) VALUES (?, ?, ?)"
-                    )
-                    .bind(&message.topic)
-                    .bind(&message.payload)
-                    .bind(message.timestamp as i64) // SQLite stores integers as signed
-                    .execute(&pool)
-                    .await;
+                    if let Some(p) = &pool {
+                        let result = sqlx::query(
+                            "INSERT INTO messages (topic, payload, timestamp) VALUES (?, ?, ?)"
+                        )
+                        .bind(&message.topic)
+                        .bind(&message.payload)
+                        .bind(message.timestamp) 
+                        .execute(p)
+                        .await;
 
-                    if let Err(e) = result {
-                        println!("Failed to insert message into database: {}", e);
+                        if let Err(e) = result {
+                            println!("Failed to insert message into database: {}", e);
+                        }
                     }
                 }
                 Ok(Event::Incoming(Packet::ConnAck(_))) => {
