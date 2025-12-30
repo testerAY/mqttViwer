@@ -1,6 +1,7 @@
 use sqlx::sqlite::{SqlitePool, SqliteConnectOptions};
 use std::str::FromStr;
 use tauri::Manager;
+use tracing::error;
 
 mod broker;
 mod mqtt;
@@ -9,10 +10,14 @@ mod commands;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt::init();
-    broker::start_broker();
 
     tauri::Builder::default()
         .setup(|app| {
+            // Start Broker asynchronously
+            tauri::async_runtime::spawn(async {
+                broker::start_broker().await;
+            });
+
             let db_url = "sqlite:app_data.db";
             let options = SqliteConnectOptions::from_str(db_url)
                 .unwrap()
@@ -30,16 +35,14 @@ pub fn run() {
                         )")
                         .execute(&pool)
                         .await {
-                            eprintln!("Failed to create tables: {}", e);
-                            // Even if table creation fails, we return the pool, 
-                            // though subsequent inserts might fail (gracefully handled).
+                            error!("Failed to create tables: {}", e);
                             Some(pool)
                         } else {
                             Some(pool)
                         }
                     }
                     Err(e) => {
-                        eprintln!("Failed to connect to DB: {}", e);
+                        error!("Failed to connect to DB: {}", e);
                         None
                     }
                 }
