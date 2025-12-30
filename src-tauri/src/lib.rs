@@ -18,8 +18,16 @@ pub fn run() {
                 broker::start_broker().await;
             });
 
-            let db_url = "sqlite:app_data.db";
-            let options = SqliteConnectOptions::from_str(db_url)
+            // App Data ディレクトリ配下に保存
+            let app_data_dir = app.path().app_data_dir().expect("failed to get app data dir");
+            // ディレクトリがなければ作成
+            if !app_data_dir.exists() {
+                std::fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
+            }
+            let db_path = app_data_dir.join("app_data.db");
+            let db_url = format!("sqlite:{}", db_path.to_string_lossy());
+
+            let options = SqliteConnectOptions::from_str(&db_url)
                 .unwrap()
                 .create_if_missing(true);
 
