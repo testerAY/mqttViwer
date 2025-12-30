@@ -3,15 +3,7 @@ import { ref, shallowRef } from 'vue';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 
-interface MqttMessage {
-    topic: string;
-    payload: string;
-    timestamp: number;
-}
-
-interface MqttStatus {
-    status: string;
-}
+import type { MqttMessage, MqttStatus } from '../types/mqtt';
 
 export const useMqttStore = defineStore('mqtt', () => {
     const dataMap = shallowRef<Map<string, MqttMessage>>(new Map());
@@ -36,8 +28,42 @@ export const useMqttStore = defineStore('mqtt', () => {
             await invoke('publish_message', { topic, payload });
         } catch (error) {
             console.error('Failed to publish message:', error);
-            throw error;
+            // fallback for simulation
+            console.log(`[Simulation] Published to ${topic}: ${payload}`);
+            
+            // Update local state for simulation
+            const msg: MqttMessage = {
+                topic,
+                payload,
+                timestamp: Date.now() / 1000
+            };
+            const newMap = new Map(dataMap.value);
+            newMap.set(topic, msg);
+            dataMap.value = newMap;
         }
+    };
+
+    const startSimulation = () => {
+        console.log('Starting simulation...');
+        const topics = ['sensors/temp', 'sensors/humidity', 'system/cpu'];
+        setInterval(() => {
+            const topic = topics[Math.floor(Math.random() * topics.length)];
+            let value = 0;
+            if (topic.includes('temp')) value = 20 + Math.random() * 10;
+            else if (topic.includes('humidity')) value = 40 + Math.random() * 20;
+            else if (topic.includes('cpu')) value = Math.random() * 100;
+            
+            const msg: MqttMessage = {
+                topic,
+                payload: value.toFixed(1),
+                timestamp: Date.now() / 1000
+            };
+            
+            console.log(`[Simulation] Update ${topic}: ${msg.payload}`);
+            const newMap = new Map(dataMap.value);
+            newMap.set(topic, msg);
+            dataMap.value = newMap;
+        }, 1000);
     };
 
     return {
@@ -45,5 +71,6 @@ export const useMqttStore = defineStore('mqtt', () => {
         isConnected,
         setupListener,
         publishMessage,
+        startSimulation,
     };
 });

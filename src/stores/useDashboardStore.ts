@@ -15,6 +15,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
         type: 'value-display',
         title: 'Temperature',
         topic: 'sensors/temp',
+        settings: { unit: '°C' }
       },
     },
     {
@@ -28,6 +29,48 @@ export const useDashboardStore = defineStore('dashboard', () => {
         type: 'value-display',
         title: 'Humidity',
         topic: 'sensors/humidity',
+        settings: { unit: '%' }
+      },
+    },
+    {
+      i: '3',
+      x: 8,
+      y: 0,
+      w: 4,
+      h: 3,
+      widget: {
+        id: '3',
+        type: 'switch',
+        title: 'Living Room Light',
+        topic: 'home/light/living',
+        settings: { onPayload: 'ON', offPayload: 'OFF' }
+      },
+    },
+    {
+      i: '4',
+      x: 0,
+      y: 4,
+      w: 8,
+      h: 6,
+      widget: {
+        id: '4',
+        type: 'chart',
+        title: 'Temperature History',
+        topic: 'sensors/temp'
+      },
+    },
+    {
+      i: '5',
+      x: 8,
+      y: 3,
+      w: 4,
+      h: 4,
+      widget: {
+        id: '5',
+        type: 'gauge',
+        title: 'CPU Load',
+        topic: 'system/cpu',
+        settings: { min: 0, max: 100, unit: '%' }
       },
     },
   ]);

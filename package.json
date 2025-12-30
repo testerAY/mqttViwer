@@ -12,9 +12,11 @@
   "dependencies": {
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "echarts": "^6.0.0",
     "grid-layout-plus": "^1.1.1",
     "pinia": "^2.1.7",
-    "vue": "^3.5.13"
+    "vue": "^3.5.13",
+    "vue-echarts": "^8.0.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",

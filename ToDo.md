@@ -20,12 +20,12 @@
   - [x] ウィジェット設定の型定義 (`WidgetConfig` 等)
 
 ## Phase 3: 基本ウィジェットの実装
-- [ ] **Frontend:** 数値表示ウィジェット (Value Display)
-- [ ] **Frontend:** スイッチ/ボタンウィジェット (Publish機能連携)
-- [ ] **Frontend:** 折れ線グラフウィジェット (Line Chart)
-  - [ ] `vue-echarts` / `echarts` の導入
-  - [ ] リアルタイム更新ロジックの実装
-- [ ] **Frontend:** ゲージウィジェット (Gauge)
+- [x] **Frontend:** 数値表示ウィジェット (Value Display)
+- [x] **Frontend:** スイッチ/ボタンウィジェット (Publish機能連携)
+- [x] **Frontend:** 折れ線グラフウィジェット (Line Chart)
+  - [x] `vue-echarts` / `echarts` の導入
+  - [x] リアルタイム更新ロジックの実装
+- [x] **Frontend:** ゲージウィジェット (Gauge)
 
 ## Phase 4: データ履歴と設定管理
 - [ ] **Backend:** 履歴データ取得コマンド (`get_history`) の実装
