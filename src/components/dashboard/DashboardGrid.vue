@@ -1,11 +1,27 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { GridLayout, GridItem } from 'grid-layout-plus';
 import { storeToRefs } from 'pinia';
 import { useDashboardStore } from '../../stores/useDashboardStore';
 import WidgetHost from './WidgetHost.vue';
+import WidgetSettingsModal from './WidgetSettingsModal.vue';
 
 const dashboardStore = useDashboardStore();
 const { layout, isEditing } = storeToRefs(dashboardStore);
+
+const settingsModalOpen = ref(false);
+const currentWidgetId = ref<string | null>(null);
+
+const handleEditWidget = (id: string) => {
+  currentWidgetId.value = id;
+  settingsModalOpen.value = true;
+};
+
+const handleRemoveWidget = (id: string) => {
+  if (confirm('Are you sure you want to remove this widget?')) {
+    dashboardStore.removeWidget(id);
+  }
+};
 </script>
 
 <template>
@@ -30,9 +46,19 @@ const { layout, isEditing } = storeToRefs(dashboardStore);
         class="dashboard-item"
         :class="{ 'editing': isEditing }"
       >
-        <WidgetHost :widget="item.widget" />
+        <WidgetHost 
+          :widget="item.widget" 
+          @edit="handleEditWidget"
+          @remove="handleRemoveWidget"
+        />
       </GridItem>
     </GridLayout>
+
+    <WidgetSettingsModal
+      :open="settingsModalOpen"
+      :widget-id="currentWidgetId"
+      @close="settingsModalOpen = false"
+    />
   </div>
 </template>
 

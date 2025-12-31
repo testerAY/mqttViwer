@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { save, open } from '@tauri-apps/plugin-dialog';
-import type { DashboardItem } from '../types/dashboard';
+import type { DashboardItem, WidgetConfig } from '../types/dashboard';
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const defaultLayout: DashboardItem[] = [
@@ -146,6 +146,27 @@ export const useDashboardStore = defineStore('dashboard', () => {
     layout.value = newLayout;
   };
 
+  const updateWidget = (id: string, updates: Partial<WidgetConfig>) => {
+    const item = layout.value.find(item => item.widget.id === id);
+    if (item) {
+      item.widget = { ...item.widget, ...updates };
+    }
+  };
+
+  const updateLayoutItem = (id: string, updates: Partial<Omit<DashboardItem, 'widget'>>) => {
+    const item = layout.value.find(item => item.widget.id === id);
+    if (item) {
+      if (updates.x !== undefined) item.x = updates.x;
+      if (updates.y !== undefined) item.y = updates.y;
+      if (updates.w !== undefined) item.w = updates.w;
+      if (updates.h !== undefined) item.h = updates.h;
+    }
+  };
+
+  const removeWidget = (id: string) => {
+    layout.value = layout.value.filter(item => item.widget.id !== id);
+  };
+
   // Initialize layout
   loadLastLayout();
 
@@ -157,5 +178,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
     updateLayout,
     saveLayoutAs,
     openLayout,
+    updateWidget,
+    updateLayoutItem,
+    removeWidget,
   };
 });
