@@ -157,12 +157,6 @@ pub async fn get_history(
     let limit = limit.unwrap_or(100);
     let filter = topic_filter.unwrap_or("%".to_string());
     
-    // sqlx::query_as! macro checks types at compile time.
-    // We map the database fields to our struct.
-    // SQLite stores integers as i64, but our struct expects u64 for timestamp.
-    // We need to cast it manually or use query_as function (non-macro).
-    // Using non-macro query_as for easier type casting.
-    
     let messages = sqlx::query_as::<_, MqttMessage>(
         "SELECT topic, payload, timestamp, data_type, value_num FROM messages WHERE topic LIKE ? ORDER BY timestamp DESC LIMIT ?"
     )
@@ -173,4 +167,41 @@ pub async fn get_history(
     .map_err(|e| e.to_string())?;
 
     Ok(messages)
+}
+
+#[tauri::command]
+pub async fn export_widget_data_as_csv(
+    pool: tauri::State<'_, Option<SqlitePool>>,
+    topic: String,
+) -> Result<String, String> {
+    let p = match pool.inner() {
+        Some(pool) => pool,
+        None => return Err("Database not connected".to_string()),
+    };
+
+    let messages = sqlx::query_as::<_, MqttMessage>(
+        "SELECT topic, payload, timestamp, data_type, value_num FROM messages WHERE topic = ? ORDER BY timestamp ASC"
+    )
+    .bind(&topic)
+    .fetch_all(p)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    if messages.is_empty() {
+        return Ok("".to_string());
+    }
+
+    let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
+    
+    wtr.write_record(&["timestamp", "topic", "payload", "data_type", "value_num"]).map_err(|e| e.to_string())?;
+
+    for msg in messages {
+        let timestamp_str = msg.timestamp.to_string();
+        let value_num_str = msg.value_num.map(|v| v.to_string()).unwrap_or_default();
+        let data_type_str = msg.data_type.as_deref().unwrap_or_default();
+        wtr.write_record(&[&timestamp_str, &msg.topic, &msg.payload, data_type_str, &value_num_str]).map_err(|e| e.to_string())?;
+    }
+
+    let csv_data = String::from_utf8(wtr.into_inner().map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    Ok(csv_data)
 }

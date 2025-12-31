@@ -2,6 +2,11 @@ use sqlx::sqlite::SqlitePool;
 use tauri::Manager;
 use tracing::error;
 
+// Add use statements for plugins
+use tauri_plugin_fs;
+use tauri_plugin_dialog;
+use tauri_plugin_opener;
+
 mod broker;
 mod mqtt;
 mod commands;
@@ -57,6 +62,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             commands::publish_message,
             commands::get_history,
@@ -64,7 +70,8 @@ pub fn run() {
             commands::load_layout,
             commands::get_last_layout_path,
             commands::get_app_settings,
-            commands::save_app_settings
+            commands::save_app_settings,
+            commands::export_widget_data_as_csv
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -2,6 +2,9 @@
 import { computed, defineAsyncComponent, onMounted } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import { useMqttStore } from '../../stores/useMqttStore';
+import { invoke } from '@tauri-apps/api/core';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
 
 const props = defineProps<{
   widget: WidgetConfig;
@@ -45,6 +48,37 @@ const widgetComponent = computed(() => {
       return null;
   }
 });
+
+const exportCsv = async () => {
+  if (!props.widget.topic) {
+    alert('No topic set for this widget.');
+    return;
+  }
+
+  try {
+    const csvData: string = await invoke('export_widget_data_as_csv', {
+      topic: props.widget.topic,
+    });
+
+    if (!csvData) {
+      alert('No data to export.');
+      return;
+    }
+
+    const filePath = await save({
+      defaultPath: `${props.widget.title.replace(/\s/g, '_')}.csv`,
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+    });
+
+    if (filePath) {
+      await writeTextFile(filePath, csvData);
+      alert('Export successful!');
+    }
+  } catch (err) {
+    console.error('Export failed:', err);
+    alert(`Export failed: ${err}`);
+  }
+};
 </script>
 
 <template>
@@ -61,7 +95,7 @@ const widgetComponent = computed(() => {
         </div>
         <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
           <li><a @click="emit('edit', widget.id)">Settings</a></li>
-          <li><a>Export CSV (Coming Soon)</a></li>
+          <li><a @click="exportCsv">Export CSV</a></li>
           <li><a @click="emit('remove', widget.id)" class="text-error">Remove</a></li>
         </ul>
       </div>
