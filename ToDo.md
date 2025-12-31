@@ -39,8 +39,8 @@
   - [x] Frontend: UIへの保存・開くボタンの追加とダイアログ連携
 
 ## Phase 5: アプリ設定と最適化
-- [ ] **Frontend:** アプリ全体設定モーダル
-  - [ ] 接続設定 (Broker Host/Port)
-  - [ ] テーマ切り替え
-- [ ] **Backend:** 接続設定の動的反映 (Internal/External切り替え対応)
-- [ ] **Backend:** 古いデータの自動削除 (Retention Policy)
+- [x] **Frontend:** アプリ全体設定モーダル
+  - [x] 接続設定 (Broker Host/Port)
+  - [x] テーマ切り替え
+- [x] **Backend:** 接続設定の動的反映 (Internal/External切り替え対応)
+- [x] **Backend:** 古いデータの自動削除 (Retention Policy)

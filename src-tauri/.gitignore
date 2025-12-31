@@ -10,3 +10,7 @@
 app_data.db
 app_data.db-shm
 app_data.db-wal
+
+# Test/Runtime files
+layout_*.json
+config.json

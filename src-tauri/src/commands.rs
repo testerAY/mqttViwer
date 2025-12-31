@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::Manager;
+use crate::config;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WidgetConfig {
@@ -27,37 +27,26 @@ pub struct DashboardItem {
     widget: WidgetConfig,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
-struct AppConfig {
-    last_layout_path: Option<String>,
-}
-
 fn update_app_config(app: &tauri::AppHandle, layout_path: String) -> Result<(), String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let config_path = app_data_dir.join("config.json");
-    
-    let config = AppConfig {
-        last_layout_path: Some(layout_path),
-    };
-    
-    let json = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-    fs::write(config_path, json).map_err(|e| e.to_string())?;
-    Ok(())
+    let mut config = config::load_config(app)?;
+    config.last_layout_path = Some(layout_path);
+    config::save_config(app, &config)
 }
 
 #[tauri::command]
 pub async fn get_last_layout_path(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let config_path = app_data_dir.join("config.json");
-    
-    if !config_path.exists() {
-        return Ok(None);
-    }
-    
-    let json = fs::read_to_string(config_path).map_err(|e| e.to_string())?;
-    let config: AppConfig = serde_json::from_str(&json).unwrap_or_default();
-    
+    let config = config::load_config(&app)?;
     Ok(config.last_layout_path)
+}
+
+#[tauri::command]
+pub async fn get_app_settings(app: tauri::AppHandle) -> Result<config::AppConfig, String> {
+    config::load_config(&app)
+}
+
+#[tauri::command]
+pub async fn save_app_settings(app: tauri::AppHandle, config: config::AppConfig) -> Result<(), String> {
+    config::save_config(&app, &config)
 }
 
 fn save_layout_impl(path: &Path, layout: &Vec<DashboardItem>) -> Result<(), String> {

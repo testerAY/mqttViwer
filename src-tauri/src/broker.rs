@@ -11,7 +11,7 @@ const CONNECTION_TIMEOUT_MS: u16 = 60000;
 const MAX_PAYLOAD_SIZE: usize = 2048;
 const MAX_INFLIGHT_COUNT: usize = 100;
 
-pub async fn start_broker() {
+pub async fn start_broker(port: u16) {
     tauri::async_runtime::spawn_blocking(move || {
         let mut config = Config::default();
         config.id = 0;
@@ -30,7 +30,7 @@ pub async fn start_broker() {
         let mut v4 = HashMap::new();
         v4.insert("local".to_string(), rumqttd::ServerSettings {
             name: "local".to_string(),
-            listen: "127.0.0.1:9883".parse().unwrap(),
+            listen: format!("127.0.0.1:{}", port).parse().unwrap(),
             next_connection_delay_ms: 10,
             connections: rumqttd::ConnectionSettings {
                 connection_timeout_ms: CONNECTION_TIMEOUT_MS,
@@ -47,7 +47,7 @@ pub async fn start_broker() {
 
         let mut broker = Broker::new(config);
         
-        info!("Broker starting on 127.0.0.1:9883...");
+        info!("Broker starting on 127.0.0.1:{}...", port);
         
         if let Err(e) = broker.start() {
              error!("Broker critical failure: {:?}", e);

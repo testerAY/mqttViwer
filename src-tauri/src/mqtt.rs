@@ -6,6 +6,7 @@ use sqlx::sqlite::SqlitePool;
 use sqlx::FromRow;
 use tokio::sync::mpsc;
 use tracing::{info, error, warn};
+use crate::config::AppConfig;
 
 #[derive(Serialize, Deserialize, Clone, Debug, FromRow)]
 pub struct MqttMessage {
@@ -19,8 +20,8 @@ pub struct MqttStatus {
     pub status: String,
 }
 
-pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn std::error::Error>> {
-    let mut mqttoptions = MqttOptions::new("rumqtt-client", "localhost", 9883);
+pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>, config: &AppConfig) -> Result<(), Box<dyn std::error::Error>> {
+    let mut mqttoptions = MqttOptions::new("rumqtt-client", &config.broker.host, config.broker.port);
     mqttoptions.set_keep_alive(Duration::from_secs(5));
 
     let (client, mut eventloop) = AsyncClient::new(mqttoptions, 50);
@@ -36,7 +37,7 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn 
     let (tx, mut rx) = mpsc::channel::<MqttMessage>(100);
 
     // Spawn DB writer task
-    if let Some(pool) = pool_opt {
+    if let Some(pool) = pool_opt.clone() {
         tauri::async_runtime::spawn(async move {
             while let Some(msg) = rx.recv().await {
                  let result = sqlx::query(
@@ -55,6 +56,31 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn 
         });
     } else {
         warn!("Database pool not available, messages will not be saved.");
+    }
+
+    // Retention Policy
+    if config.retention.enabled {
+        let pool_opt_retention = pool_opt.clone();
+        let days = config.retention.days;
+        tauri::async_runtime::spawn(async move {
+            if let Some(pool) = pool_opt_retention {
+                // Wait a bit for DB to be ready and system to stabilize
+                tokio::time::sleep(Duration::from_secs(10)).await;
+                
+                let retention_seconds = days as i64 * 24 * 60 * 60;
+                let threshold = chrono::Utc::now().timestamp() - retention_seconds;
+                
+                info!("Running retention policy: deleting messages older than {} days (timestamp < {})", days, threshold);
+                
+                match sqlx::query("DELETE FROM messages WHERE timestamp < ?")
+                    .bind(threshold)
+                    .execute(&pool)
+                    .await {
+                        Ok(result) => info!("Retention policy applied. Deleted {} rows.", result.rows_affected()),
+                        Err(e) => error!("Failed to apply retention policy: {}", e),
+                    }
+            }
+        });
     }
 
     let app_handle = app.clone();

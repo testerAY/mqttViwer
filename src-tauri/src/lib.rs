@@ -6,6 +6,7 @@ use tracing::error;
 mod broker;
 mod mqtt;
 mod commands;
+mod config;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -13,10 +14,20 @@ pub fn run() {
 
     tauri::Builder::default()
         .setup(|app| {
-            // Start Broker asynchronously
-            tauri::async_runtime::spawn(async {
-                broker::start_broker().await;
-            });
+            // Load config
+            let config = config::load_config(app.handle())
+                .unwrap_or_else(|e| {
+                    error!("Failed to load config: {}, using defaults", e);
+                    config::AppConfig::default()
+                });
+
+            // Start Broker asynchronously if mode is internal
+            if config.broker.mode == "internal" {
+                let port = config.broker.port;
+                tauri::async_runtime::spawn(async move {
+                    broker::start_broker(port).await;
+                });
+            }
 
             // App Data ディレクトリ配下に保存
             let app_data_dir = app.path().app_data_dir().expect("failed to get app data dir");
@@ -58,7 +69,7 @@ pub fn run() {
             app.manage(pool);
 
             let handle = app.handle().clone();
-            mqtt::init(&handle).expect("Failed to initialize MQTT client");
+            mqtt::init(&handle, &config).expect("Failed to initialize MQTT client");
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
@@ -68,7 +79,9 @@ pub fn run() {
             commands::get_history,
             commands::save_layout,
             commands::load_layout,
-            commands::get_last_layout_path
+            commands::get_last_layout_path,
+            commands::get_app_settings,
+            commands::save_app_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
