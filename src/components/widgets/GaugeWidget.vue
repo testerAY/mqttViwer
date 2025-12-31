@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import type { MqttMessage } from '../../types/mqtt';
+import { extractValue } from '../../utils/jsonExtractor';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { GaugeChart } from 'echarts/charts';
@@ -19,7 +20,8 @@ const props = defineProps<{
 
 const value = computed(() => {
   if (!props.message) return 0;
-  const val = parseFloat(props.message.payload);
+  const rawVal = extractValue(props.message.payload, props.config.settings?.valueKey);
+  const val = parseFloat(rawVal);
   return isNaN(val) ? 0 : val;
 });
 
