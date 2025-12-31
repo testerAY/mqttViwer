@@ -31,6 +31,36 @@ const testHistory = async () => {
   console.log('History:', history);
 };
 
+const widgetTypes = [
+  { 
+    id: 'value-display', 
+    name: 'Value Display', 
+    icon: 'M7 20l4-16m2 16l4-16M6 9h14M4 15h14' 
+  },
+  { 
+    id: 'chart', 
+    name: 'Chart', 
+    icon: 'M7 12l3-2 3 2 4-4M8 21l4-4 4 4M3 4v16a1 1 0 001 1h16' 
+  },
+  { 
+    id: 'gauge', 
+    name: 'Gauge', 
+    icon: 'M12 20a8 8 0 100-16 8 8 0 000 16z M12 14v-4 M12 14l2 2' 
+  },
+  { 
+    id: 'switch', 
+    name: 'Switch', 
+    icon: 'M5 12h14M12 5l7 7-7 7' 
+  },
+];
+
+const handleDragStart = (event: DragEvent, type: string) => {
+  if (event.dataTransfer) {
+    event.dataTransfer.setData('widget-type', type);
+    event.dataTransfer.effectAllowed = 'copy';
+  }
+};
+
 onMounted(async () => {
   await appStore.loadSettings();
   mqttStore.setupListener();
@@ -77,31 +107,60 @@ onMounted(async () => {
     </header>
 
     <!-- Main Content -->
-    <main class="flex-1 p-4 overflow-y-auto bg-base-100">
-      <!-- Publish Test Section -->
-      <div class="card bg-base-200 shadow-xl mb-6">
-        <div class="card-body">
-          <h2 class="card-title">Publish Test</h2>
-          <div class="flex gap-4 items-end flex-wrap">
-            <div class="form-control w-full max-w-xs">
-              <label class="label">
-                <span class="label-text">Topic</span>
-              </label>
-              <input v-model="publishTopic" type="text" placeholder="Topic" class="input input-bordered w-full max-w-xs" />
+    <main class="flex-1 overflow-hidden bg-base-100 flex">
+      <!-- Widget Palette -->
+      <aside v-if="isEditing" class="w-64 bg-base-200 border-r border-base-300 flex flex-col z-40 transition-all duration-300">
+        <div class="p-4 border-b border-base-300">
+          <h2 class="font-bold text-lg">Widgets</h2>
+          <p class="text-xs text-base-content/70">Drag to dashboard</p>
+        </div>
+        <div class="p-4 space-y-3 overflow-y-auto flex-1">
+          <div 
+            v-for="type in widgetTypes" 
+            :key="type.id"
+            class="card bg-base-100 shadow-sm cursor-grab hover:shadow-md transition-shadow border border-base-300 active:cursor-grabbing"
+            draggable="true"
+            @dragstart="handleDragStart($event, type.id)"
+          >
+            <div class="card-body p-4 flex flex-row items-center gap-3">
+              <div class="p-2 bg-primary/10 rounded-lg text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="type.icon" />
+                </svg>
+              </div>
+              <span class="font-medium">{{ type.name }}</span>
             </div>
-            <div class="form-control w-full max-w-xs">
-              <label class="label">
-                <span class="label-text">Payload</span>
-              </label>
-              <input v-model="publishPayload" type="text" placeholder="Payload" class="input input-bordered w-full max-w-xs" />
-            </div>
-            <button class="btn btn-primary" @click="handlePublish">Send</button>
           </div>
         </div>
-      </div>
+      </aside>
 
-      <!-- Dashboard Grid -->
-      <DashboardGrid />
+      <!-- Dashboard Area -->
+      <div class="flex-1 p-4 overflow-y-auto relative">
+        <!-- Publish Test Section -->
+        <div class="card bg-base-200 shadow-xl mb-6">
+          <div class="card-body">
+            <h2 class="card-title">Publish Test</h2>
+            <div class="flex gap-4 items-end flex-wrap">
+              <div class="form-control w-full max-w-xs">
+                <label class="label">
+                  <span class="label-text">Topic</span>
+                </label>
+                <input v-model="publishTopic" type="text" placeholder="Topic" class="input input-bordered w-full max-w-xs" />
+              </div>
+              <div class="form-control w-full max-w-xs">
+                <label class="label">
+                  <span class="label-text">Payload</span>
+                </label>
+                <input v-model="publishPayload" type="text" placeholder="Payload" class="input input-bordered w-full max-w-xs" />
+              </div>
+              <button class="btn btn-primary" @click="handlePublish">Send</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <DashboardGrid />
+      </div>
     </main>
     <SettingsModal :open="showSettings" @close="showSettings = false" />
   </div>

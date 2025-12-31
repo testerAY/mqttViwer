@@ -167,6 +167,54 @@ export const useDashboardStore = defineStore('dashboard', () => {
     layout.value = layout.value.filter(item => item.widget.id !== id);
   };
 
+  const addWidget = (type: WidgetConfig['type'], x: number, y: number) => {
+    const id = crypto.randomUUID();
+    let width = 4;
+    let height = 4;
+    let title = 'New Widget';
+    let topic = 'test/topic';
+    let settings = {};
+
+    switch (type) {
+      case 'value-display':
+        title = 'Value Display';
+        settings = { unit: '' };
+        height = 4;
+        break;
+      case 'chart':
+        title = 'Chart';
+        width = 8;
+        height = 6;
+        break;
+      case 'gauge':
+        title = 'Gauge';
+        settings = { min: 0, max: 100, unit: '%' };
+        break;
+      case 'switch':
+        title = 'Switch';
+        settings = { onPayload: 'ON', offPayload: 'OFF' };
+        height = 3;
+        break;
+    }
+
+    const newItem: DashboardItem = {
+      i: id,
+      x,
+      y,
+      w: width,
+      h: height,
+      widget: {
+        id,
+        type,
+        title,
+        topic,
+        settings
+      }
+    };
+
+    layout.value.push(newItem);
+  };
+
   // Initialize layout
   loadLastLayout();
 
@@ -181,5 +229,6 @@ export const useDashboardStore = defineStore('dashboard', () => {
     updateWidget,
     updateLayoutItem,
     removeWidget,
+    addWidget,
   };
 });

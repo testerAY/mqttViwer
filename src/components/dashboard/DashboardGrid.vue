@@ -3,6 +3,7 @@ import { ref } from 'vue';
 import { GridLayout, GridItem } from 'grid-layout-plus';
 import { storeToRefs } from 'pinia';
 import { useDashboardStore } from '../../stores/useDashboardStore';
+import type { WidgetConfig } from '../../types/dashboard';
 import WidgetHost from './WidgetHost.vue';
 import WidgetSettingsModal from './WidgetSettingsModal.vue';
 
@@ -11,10 +12,52 @@ const { layout, isEditing } = storeToRefs(dashboardStore);
 
 const settingsModalOpen = ref(false);
 const currentWidgetId = ref<string | null>(null);
+const gridContainer = ref<HTMLElement | null>(null);
 
 const handleEditWidget = (id: string) => {
   currentWidgetId.value = id;
   settingsModalOpen.value = true;
+};
+
+const handleDragOver = (event: DragEvent) => {
+  if (!isEditing.value) return;
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'copy';
+  }
+};
+
+const handleDrop = (event: DragEvent) => {
+  if (!isEditing.value) return;
+  
+  // Stop propagation to prevent multiple drops if handled by both container and grid
+  event.preventDefault();
+  event.stopPropagation();
+  
+  console.log('Drop event detected');
+  const type = event.dataTransfer?.getData('widget-type');
+  console.log('Widget type:', type);
+  
+  if (type && gridContainer.value) {
+    const rect = gridContainer.value.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    
+    // Grid calculation
+    const colNum = 12;
+    const colWidth = rect.width / colNum;
+    const rowHeight = 70; // 60px height + 10px margin
+    
+    const gridX = Math.floor(x / colWidth);
+    const gridY = Math.floor(y / rowHeight);
+    
+    // Clamp values
+    const safeX = Math.max(0, Math.min(colNum - 1, gridX));
+    const safeY = Math.max(0, gridY);
+
+    console.log(`Adding widget at: ${safeX}, ${safeY}`);
+    dashboardStore.addWidget(type as WidgetConfig['type'], safeX, safeY);
+  }
 };
 
 const handleRemoveWidget = (id: string) => {
@@ -25,7 +68,12 @@ const handleRemoveWidget = (id: string) => {
 </script>
 
 <template>
-  <div class="dashboard-grid">
+  <div 
+    ref="gridContainer"
+    class="dashboard-grid"
+    @dragover="handleDragOver"
+    @drop="handleDrop"
+  >
     <GridLayout
       v-model:layout="layout"
       :col-num="12"
