@@ -62,9 +62,13 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::publish_message,
-            commands::get_history
+            commands::get_history,
+            commands::save_layout,
+            commands::load_layout,
+            commands::get_last_layout_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

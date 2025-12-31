@@ -1,9 +1,11 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
+import { save, open } from '@tauri-apps/plugin-dialog';
 import type { DashboardItem } from '../types/dashboard';
 
 export const useDashboardStore = defineStore('dashboard', () => {
-  const layout = ref<DashboardItem[]>([
+  const defaultLayout: DashboardItem[] = [
     {
       i: '1',
       x: 0,
@@ -73,24 +75,87 @@ export const useDashboardStore = defineStore('dashboard', () => {
         settings: { min: 0, max: 100, unit: '%' }
       },
     },
-  ]);
+  ];
 
+  const layout = ref<DashboardItem[]>([...defaultLayout]);
   const isEditing = ref(false);
+  const currentLayoutPath = ref<string | null>(null);
 
   const toggleEditMode = () => {
     isEditing.value = !isEditing.value;
   };
 
+  const loadLastLayout = async () => {
+    try {
+      const path = await invoke<string | null>('get_last_layout_path');
+      if (path) {
+        const savedLayout = await invoke<DashboardItem[]>('load_layout', { path });
+        if (savedLayout && savedLayout.length > 0) {
+          layout.value = savedLayout;
+          currentLayoutPath.value = path;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load last layout:', error);
+    }
+  };
+
+  const saveLayoutAs = async () => {
+    try {
+      const path = await save({
+        filters: [{
+          name: 'JSON',
+          extensions: ['json']
+        }]
+      });
+      
+      if (path) {
+        await invoke('save_layout', { path, layout: layout.value });
+        currentLayoutPath.value = path;
+      }
+    } catch (error) {
+      console.error('Failed to save layout:', error);
+    }
+  };
+
+  const openLayout = async () => {
+    try {
+      const path = await open({
+        multiple: false,
+        directory: false,
+        filters: [{
+          name: 'JSON',
+          extensions: ['json']
+        }]
+      });
+      
+      if (path) {
+        const savedLayout = await invoke<DashboardItem[]>('load_layout', { path });
+        if (savedLayout && savedLayout.length > 0) {
+          layout.value = savedLayout;
+          currentLayoutPath.value = path as string;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to open layout:', error);
+    }
+  };
+
   const updateLayout = (newLayout: DashboardItem[]) => {
-    // grid-layout-plus modifies the array in place, so we might not need to reassign if binding directly.
-    // However, explicit update can be good for persistence later.
+    // Just update the state, no auto-save to file
     layout.value = newLayout;
   };
+
+  // Initialize layout
+  loadLastLayout();
 
   return {
     layout,
     isEditing,
+    currentLayoutPath,
     toggleEditMode,
     updateLayout,
+    saveLayoutAs,
+    openLayout,
   };
 });
