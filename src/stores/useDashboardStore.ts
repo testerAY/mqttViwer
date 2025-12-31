@@ -215,6 +215,14 @@ export const useDashboardStore = defineStore('dashboard', () => {
     layout.value.push(newItem);
   };
 
+  // ★追加: 新規ウィジェットドラッグ中のフラグ
+  const isDraggingNewWidget = ref(false);
+
+  // ★追加: フラグ操作用のアクション
+  const setDraggingNewWidget = (isDragging: boolean) => {
+    isDraggingNewWidget.value = isDragging;
+  };
+
   // Initialize layout
   loadLastLayout();
 
@@ -230,5 +238,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     updateLayoutItem,
     removeWidget,
     addWidget,
+    isDraggingNewWidget,
+    setDraggingNewWidget,
   };
 });

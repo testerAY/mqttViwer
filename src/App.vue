@@ -55,10 +55,16 @@ const widgetTypes = [
 ];
 
 const handleDragStart = (event: DragEvent, type: string) => {
+  dashboardStore.setDraggingNewWidget(true);
   if (event.dataTransfer) {
+    event.dataTransfer.setData('text/plain', type);
     event.dataTransfer.setData('widget-type', type);
     event.dataTransfer.effectAllowed = 'copy';
   }
+};
+
+const handleDragEnd = () => {
+  dashboardStore.setDraggingNewWidget(false);
 };
 
 onMounted(async () => {
@@ -121,6 +127,7 @@ onMounted(async () => {
             class="card bg-base-100 shadow-sm cursor-grab hover:shadow-md transition-shadow border border-base-300 active:cursor-grabbing"
             draggable="true"
             @dragstart="handleDragStart($event, type.id)"
+            @dragend="handleDragEnd"
           >
             <div class="card-body p-4 flex flex-row items-center gap-3">
               <div class="p-2 bg-primary/10 rounded-lg text-primary">
