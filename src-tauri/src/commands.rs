@@ -70,6 +70,7 @@ pub async fn save_layout(
     path: String,
     layout: Vec<DashboardItem>,
 ) -> Result<(), String> {
+    println!("Backend: save_layout called. Path: {}, Items: {}", path, layout.len());
     let layout_path = PathBuf::from(&path);
     save_layout_impl(&layout_path, &layout)?;
     update_app_config(&app, path)?;
@@ -78,6 +79,7 @@ pub async fn save_layout(
 
 #[tauri::command]
 pub async fn load_layout(app: tauri::AppHandle, path: String) -> Result<Vec<DashboardItem>, String> {
+    println!("Backend: load_layout called. Path: {}", path);
     let layout_path = PathBuf::from(&path);
     let layout = load_layout_impl(&layout_path)?;
     update_app_config(&app, path)?;

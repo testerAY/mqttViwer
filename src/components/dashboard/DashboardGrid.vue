@@ -14,6 +14,7 @@ const { layout, isEditing, isDraggingNewWidget } = storeToRefs(dashboardStore);
 const settingsModalOpen = ref(false);
 const currentWidgetId = ref<string | null>(null);
 const gridContainer = ref<HTMLElement | null>(null);
+const isDragOver = ref(false); // ドラッグ中フラグを追加
 
 const handleEditWidget = (id: string) => {
   currentWidgetId.value = id;
@@ -31,35 +32,54 @@ const handleDragOver = (event: DragEvent) => {
 };
 
 // ★ オーバーレイ上でのドロップ処理
-const handleDrop = (event: DragEvent) => {
+const handleDrop = async (event: DragEvent) => {
   if (!isEditing.value) return;
   
   event.preventDefault();
   event.stopPropagation();
-  
-  const type = event.dataTransfer?.getData('widget-type') || event.dataTransfer?.getData('text/plain');
-  
-  // gridContainer (親div) を基準に座標計算
-  if (type && gridContainer.value) {
-    const rect = gridContainer.value.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    
-    // Grid calculation
-    const colNum = 12;
-    const colWidth = rect.width / colNum;
-    const rowHeight = 70; // 60px height + 10px margin
-    
-    const gridX = Math.floor(x / colWidth);
-    const gridY = Math.floor(y / rowHeight);
-    
-    // Clamp values
-    const safeX = Math.max(0, Math.min(colNum - 1, gridX));
-    const safeY = Math.max(0, gridY);
 
-    dashboardStore.addWidget(type as WidgetConfig['type'], safeX, safeY);
+  try {
+    const type = event.dataTransfer?.getData('widget-type') || event.dataTransfer?.getData('text/plain');
+    console.log('Drop event detected. Type:', type);
     
-    // ドロップ完了後、ドラッグ状態を強制解除（念のため）
+    if (type && gridContainer.value) {
+      const rect = gridContainer.value.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      
+      const colNum = 12; // Grid Layoutの列数に合わせる
+      const colWidth = rect.width / colNum;
+      const rowHeight = 60; // GridItemのrow-heightに合わせる
+      
+      const gridX = Math.floor(x / colWidth);
+      const gridY = Math.floor(y / rowHeight);
+
+      console.log(`Drop coordinates: client(${event.clientX}, ${event.clientY}) -> local(${x}, ${y}) -> grid(${gridX}, ${gridY})`);
+
+      // ★ ウィジェットタイプごとの幅を定義（Storeの設定と合わせる）
+      let widgetWidth = 4; // デフォルト
+      if (type === 'chart') {
+        widgetWidth = 8;
+      }
+      // switchなどは4でOK、必要ならcase追加
+
+      // ★ はみ出さない最大X座標を計算 (12 - 幅)
+      const maxX = colNum - widgetWidth;
+      
+      // safeX を「0 ～ maxX」の範囲に収める
+      const safeX = Math.max(0, Math.min(maxX, gridX));
+      const safeY = Math.max(0, gridY);
+
+      console.log(`Adding widget at: ${safeX}, ${safeY} (Width: ${widgetWidth})`);
+      await dashboardStore.addWidget(type as WidgetConfig['type'], safeX, safeY);
+      console.log('Widget added via store');
+      
+      dashboardStore.setDraggingNewWidget(false);
+    } else {
+      console.warn('Drop failed: Missing type or gridContainer');
+    }
+  } catch (error) {
+    console.error('Error in handleDrop:', error);
     dashboardStore.setDraggingNewWidget(false);
   }
 };
@@ -69,12 +89,34 @@ const handleRemoveWidget = (id: string) => {
     dashboardStore.removeWidget(id);
   }
 };
+
+// ドラッグがコンテナに入った時
+const handleDragEnter = (event: DragEvent) => {
+  if (!isEditing.value) return;
+  event.preventDefault(); // WebView対策：必須
+  isDragOver.value = true;
+};
+
+// ドラッグがコンテナから出た時
+const handleDragLeave = (event: DragEvent) => {
+  if (!isEditing.value) return;
+  
+  // 関連ターゲット（移動先）がコンテナ内であればフラグを維持
+  if (gridContainer.value && gridContainer.value.contains(event.relatedTarget as Node)) {
+    return;
+  }
+  isDragOver.value = false;
+};
 </script>
 
 <template>
   <div 
     ref="gridContainer"
     class="dashboard-grid"
+    @dragover="handleDragOver"
+    @drop="handleDrop"
+    @dragenter="handleDragEnter"
+    @dragleave="handleDragLeave"
   >
     <div :style="{ opacity: isDraggingNewWidget ? 0.5 : 1, transition: 'opacity 0.2s' }">
       <GridLayout
@@ -109,8 +151,6 @@ const handleRemoveWidget = (id: string) => {
     <div 
       v-if="isDraggingNewWidget"
       class="drop-overlay"
-      @dragover="handleDragOver"
-      @drop="handleDrop"
     >
       <div class="drop-message">
         <span class="text-xl font-bold">+ Drop Widget Here</span>
@@ -128,7 +168,8 @@ const handleRemoveWidget = (id: string) => {
 <style scoped>
 .dashboard-grid {
   width: 100%;
-  min-height: calc(100vh - 100px); 
+  min-height: calc(100vh - 100px);
+  height: 100%; 
   position: relative; /* オーバーレイの絶対配置の基準点 */
 }
 
@@ -137,15 +178,15 @@ const handleRemoveWidget = (id: string) => {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  right: 0;
+  bottom: 0;
   z-index: 9999; /* 最前面に表示 */
   background-color: rgba(var(--p), 0.1); /* Primary color with transparency */
   border: 4px dashed rgba(var(--p), 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: auto; /* イベントを確実に受け取る */
+  pointer-events: none; /* イベントを親に透過させる */
 }
 
 .drop-message {

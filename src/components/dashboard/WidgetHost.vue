@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent } from 'vue';
+import { computed, defineAsyncComponent, onMounted } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import { useMqttStore } from '../../stores/useMqttStore';
 
 const props = defineProps<{
   widget: WidgetConfig;
 }>();
+
+onMounted(() => {
+  console.log(`Widget mounted: ${props.widget.id} (${props.widget.type})`);
+});
 
 const emit = defineEmits<{
   (e: 'edit', id: string): void;

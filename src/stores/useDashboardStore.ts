@@ -118,6 +118,23 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   };
 
+  const saveLayout = async () => {
+    if (!currentLayoutPath.value) {
+      console.warn('No layout path set, cannot auto-save.');
+      return;
+    }
+    try {
+      console.log('Saving layout to:', currentLayoutPath.value);
+      await invoke('save_layout', { 
+        path: currentLayoutPath.value, 
+        layout: layout.value 
+      });
+      console.log('Layout saved successfully');
+    } catch (error) {
+      console.error('Failed to save layout:', error);
+    }
+  };
+
   const openLayout = async () => {
     try {
       const path = await open({
@@ -167,7 +184,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
     layout.value = layout.value.filter(item => item.widget.id !== id);
   };
 
-  const addWidget = (type: WidgetConfig['type'], x: number, y: number) => {
+  const addWidget = async (type: WidgetConfig['type'], x: number, y: number) => {
     const id = crypto.randomUUID();
     let width = 4;
     let height = 4;
@@ -212,7 +229,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
       }
     };
 
-    layout.value.push(newItem);
+    console.log('Adding new widget item:', newItem);
+    // 配列の再代入を行うことで、変更検知を確実にする
+    layout.value = [...layout.value, newItem];
+    await saveLayout();
   };
 
   // ★追加: 新規ウィジェットドラッグ中のフラグ

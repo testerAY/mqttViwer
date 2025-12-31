@@ -67,6 +67,11 @@ const handleDragEnd = () => {
   dashboardStore.setDraggingNewWidget(false);
 };
 
+// アプリ全体でドラッグイベントを許可する（WebView対策）
+const handleGlobalDragOver = (event: DragEvent) => {
+  event.preventDefault();
+};
+
 onMounted(async () => {
   await appStore.loadSettings();
   mqttStore.setupListener();
@@ -74,7 +79,11 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen" :data-theme="appStore.settings.theme">
+  <div 
+    class="flex flex-col h-screen" 
+    :data-theme="appStore.settings.theme"
+    @dragover="handleGlobalDragOver"
+  >
     <!-- Header -->
     <header class="navbar bg-base-300 text-neutral-content z-50">
       <div class="flex-1">
