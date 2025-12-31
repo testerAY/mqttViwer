@@ -4,6 +4,8 @@ use tauri::{Emitter, Manager};
 use std::time::Duration;
 use sqlx::sqlite::SqlitePool;
 use sqlx::FromRow;
+use tokio::sync::mpsc;
+use tracing::{info, error, warn};
 
 #[derive(Serialize, Deserialize, Clone, Debug, FromRow)]
 pub struct MqttMessage {
@@ -28,7 +30,32 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn 
 
     // Get DB pool from state
     let pool_state = app.state::<Option<SqlitePool>>();
-    let pool = pool_state.inner().clone();
+    let pool_opt = pool_state.inner().clone();
+    
+    // Create channel for DB writes
+    let (tx, mut rx) = mpsc::channel::<MqttMessage>(100);
+
+    // Spawn DB writer task
+    if let Some(pool) = pool_opt {
+        tauri::async_runtime::spawn(async move {
+            while let Some(msg) = rx.recv().await {
+                 let result = sqlx::query(
+                    "INSERT INTO messages (topic, payload, timestamp) VALUES (?, ?, ?)"
+                )
+                .bind(&msg.topic)
+                .bind(&msg.payload)
+                .bind(msg.timestamp) 
+                .execute(&pool)
+                .await;
+
+                if let Err(e) = result {
+                    error!("Failed to insert message into database: {}", e);
+                }
+            }
+        });
+    } else {
+        warn!("Database pool not available, messages will not be saved.");
+    }
 
     let app_handle = app.clone();
     let client_clone = client.clone();
@@ -39,7 +66,7 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn 
 
         // Subscribe to all topics
         if let Err(e) = client_clone.subscribe("#", QoS::AtMostOnce).await {
-             println!("Failed to subscribe: {}", e);
+             error!("Failed to subscribe: {}", e);
              tokio::time::sleep(Duration::from_secs(1)).await;
         }
 
@@ -51,46 +78,35 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<(), Box<dyn 
                         payload: String::from_utf8_lossy(&publish.payload).to_string(),
                         timestamp: chrono::Utc::now().timestamp(),
                     };
-                    println!("Received = {:?}", message);
+                    info!("Received = {:?}", message);
                     
                     // Emit to frontend
                     if let Err(e) = app_handle.emit("mqtt-message", &message) {
-                        println!("Failed to emit message: {}", e);
+                        error!("Failed to emit message: {}", e);
                     }
                     
-                    // Insert into database via sqlx
-                    if let Some(p) = &pool {
-                        let result = sqlx::query(
-                            "INSERT INTO messages (topic, payload, timestamp) VALUES (?, ?, ?)"
-                        )
-                        .bind(&message.topic)
-                        .bind(&message.payload)
-                        .bind(message.timestamp) 
-                        .execute(p)
-                        .await;
-
-                        if let Err(e) = result {
-                            println!("Failed to insert message into database: {}", e);
-                        }
+                    // Send to DB writer
+                    if let Err(e) = tx.send(message).await {
+                        error!("Failed to send message to DB writer: {}", e);
                     }
                 }
                 Ok(Event::Incoming(Packet::ConnAck(_))) => {
-                    println!("MQTT Connected!");
+                    info!("MQTT Connected!");
                     let status = MqttStatus {
                         status: "connected".to_string(),
                     };
                     if let Err(e) = app_handle.emit("mqtt-status", &status) {
-                        println!("Failed to emit status: {}", e);
+                        error!("Failed to emit status: {}", e);
                     }
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    println!("Error = {:?}", e);
+                    error!("Error = {:?}", e);
                     let status = MqttStatus {
                         status: "disconnected".to_string(),
                     };
                     if let Err(e) = app_handle.emit("mqtt-status", &status) {
-                        println!("Failed to emit status: {}", e);
+                        error!("Failed to emit status: {}", e);
                     }
                     tokio::time::sleep(Duration::from_secs(3)).await;
                 }
