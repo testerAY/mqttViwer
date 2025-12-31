@@ -32,7 +32,7 @@
   - [x] SQLiteからの範囲検索と間引き処理
   - [x] DB接続エラーハンドリングの強化 (アプリクラッシュ回避)
   - [x] `tauri-plugin-sql` の廃止と `sqlx` によるテーブル管理への移行
-- [ ] **Frontend:** グラフへの履歴データ反映
+- [x] **Frontend:** グラフへの履歴データ反映
 - [ ] **System:** レイアウト設定の保存・読み込み
   - [ ] Backend: `layout.json` のファイルI/O
   - [ ] Frontend: 設定保存・復元ロジック

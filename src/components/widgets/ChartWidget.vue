@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue';
+import { useMqttStore } from '../../stores/useMqttStore';
 import type { WidgetConfig } from '../../types/dashboard';
 import type { MqttMessage } from '../../types/mqtt';
 import { use } from 'echarts/core';
@@ -25,6 +26,7 @@ const props = defineProps<{
   message: MqttMessage | undefined;
 }>();
 
+const mqttStore = useMqttStore();
 const history = ref<Array<{time: string, value: number}>>([]);
 const maxPoints = 50;
 
@@ -52,7 +54,20 @@ watch(() => props.message, (newMsg) => {
   }
 });
 
-onMounted(() => {
+onMounted(async () => {
+    // Load history data from backend
+    if (props.config.topic) {
+        try {
+            const messages = await mqttStore.getHistory(props.config.topic, maxPoints);
+            // Messages come in DESC order (newest first), reverse to get chronological order
+            messages.reverse().forEach(msg => {
+                addDataPoint(msg);
+            });
+        } catch (e) {
+            console.error('Failed to load chart history:', e);
+        }
+    }
+
     if (props.message) {
         addDataPoint(props.message);
     }
