@@ -52,6 +52,11 @@ const widgetTypes = [
     name: 'Switch', 
     icon: 'M5 12h14M12 5l7 7-7 7' 
   },
+  { 
+    id: 'slider', 
+    name: 'Slider', 
+    icon: 'M4 6h16M4 12h16M4 18h16' 
+  },
 ];
 
 const handleDragStart = (event: DragEvent, type: string) => {

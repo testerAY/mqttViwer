@@ -27,6 +27,7 @@ const ValueDisplayWidget = defineAsyncComponent(() => import('../widgets/ValueDi
 const SwitchWidget = defineAsyncComponent(() => import('../widgets/SwitchWidget.vue'));
 const ChartWidget = defineAsyncComponent(() => import('../widgets/ChartWidget.vue'));
 const GaugeWidget = defineAsyncComponent(() => import('../widgets/GaugeWidget.vue'));
+const SliderWidget = defineAsyncComponent(() => import('../widgets/SliderWidget.vue'));
 
 const widgetComponent = computed(() => {
   switch (props.widget.type) {
@@ -38,6 +39,8 @@ const widgetComponent = computed(() => {
       return ChartWidget;
     case 'gauge':
       return GaugeWidget;
+    case 'slider':
+      return SliderWidget;
     default:
       return null;
   }

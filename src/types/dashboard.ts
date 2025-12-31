@@ -1,4 +1,4 @@
-export type WidgetType = 'value-display' | 'switch' | 'chart' | 'gauge';
+export type WidgetType = 'value-display' | 'switch' | 'chart' | 'gauge' | 'slider';
 
 export interface WidgetConfig {
   id: string;

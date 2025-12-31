@@ -95,6 +95,7 @@ const handleSave = () => {
               <option value="switch">Switch</option>
               <option value="chart">Chart</option>
               <option value="gauge">Gauge</option>
+              <option value="slider">Slider</option>
             </select>
             <label class="label">
               <span class="label-text-alt">Type cannot be changed after creation</span>
@@ -122,6 +123,24 @@ const handleSave = () => {
                <div class="form-control w-full">
                  <label class="label"><span class="label-text">Max Value</span></label>
                  <input v-model.number="localConfig.settings.max" type="number" class="input input-bordered" />
+               </div>
+             </div>
+           </template>
+
+           <template v-if="localConfig.type === 'slider'">
+             <div class="divider">Slider Settings</div>
+             <div class="grid grid-cols-3 gap-4">
+               <div class="form-control w-full">
+                 <label class="label"><span class="label-text">Min Value</span></label>
+                 <input v-model.number="localConfig.settings.min" type="number" class="input input-bordered" />
+               </div>
+               <div class="form-control w-full">
+                 <label class="label"><span class="label-text">Max Value</span></label>
+                 <input v-model.number="localConfig.settings.max" type="number" class="input input-bordered" />
+               </div>
+               <div class="form-control w-full">
+                 <label class="label"><span class="label-text">Step</span></label>
+                 <input v-model.number="localConfig.settings.step" type="number" class="input input-bordered" />
                </div>
              </div>
            </template>
