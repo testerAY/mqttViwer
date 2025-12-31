@@ -19,13 +19,13 @@
 ## Phase 2: バックエンド・データ処理の高度化 (Rust/DB)
 受信ループ（MQTT通信）には負荷をかけず、DB保存プロセス（別スレッド）でデータの解析を行います。
 
-- [ ] **DBスキーマの検討・更新** `[src-tauri/src/database.rs]`
+- [x] **DBスキーマの検討・更新** `[src-tauri/src/database.rs]`
     - 必要に応じて、データの型情報を保存するカラム（`data_type` 等）や、パース済みデータを検索しやすくする工夫（SQLiteのGenerated ColumnsやJSON拡張の利用検討）を追加。
-- [ ] **ペイロード解析ロジックの実装** `[src-tauri/src/mqtt.rs]`
+- [x] **ペイロード解析ロジックの実装** `[src-tauri/src/mqtt.rs]`
     - DB保存用の非同期タスク（`mpsc::channel` の受信側）内に解析処理を追加。
     - 入力テキストが「数値」か「JSON」かを判定。
     - JSONの場合、パースして構造を確認（バリデーション）。
-- [ ] **履歴取得APIの改修** `[src-tauri/src/commands.rs]`
+- [x] **履歴取得APIの改修** `[src-tauri/src/commands.rs]`
     - フロントエンドがチャート描画用に過去データを要求した際、解析済みの構造（あるいはJSONとして扱いやすい形式）で返却するように `get_history` コマンドを調整。
 
 ## Phase 3: 可視化ウィジェットのJSON対応

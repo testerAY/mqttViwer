@@ -13,11 +13,24 @@ pub struct MqttMessage {
     pub topic: String,
     pub payload: String,
     pub timestamp: i64,
+    pub data_type: Option<String>,
+    pub value_num: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MqttStatus {
     pub status: String,
+}
+
+fn analyze_payload(payload: &str) -> (Option<String>, Option<f64>) {
+    let trimmed = payload.trim();
+    if let Ok(num) = trimmed.parse::<f64>() {
+        (Some("number".to_string()), Some(num))
+    } else if serde_json::from_str::<serde_json::Value>(payload).is_ok() {
+        (Some("json".to_string()), None)
+    } else {
+        (Some("text".to_string()), None)
+    }
 }
 
 pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>, config: &AppConfig) -> Result<(), Box<dyn std::error::Error>> {
@@ -40,12 +53,17 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>, config: &AppConfig) ->
     if let Some(pool) = pool_opt.clone() {
         tauri::async_runtime::spawn(async move {
             while let Some(msg) = rx.recv().await {
+                // Payload analysis
+                let (data_type, value_num) = analyze_payload(&msg.payload);
+
                  let result = sqlx::query(
-                    "INSERT INTO messages (topic, payload, timestamp) VALUES (?, ?, ?)"
+                    "INSERT INTO messages (topic, payload, timestamp, data_type, value_num) VALUES (?, ?, ?, ?, ?)"
                 )
                 .bind(&msg.topic)
                 .bind(&msg.payload)
                 .bind(msg.timestamp) 
+                .bind(data_type)
+                .bind(value_num)
                 .execute(&pool)
                 .await;
 
@@ -103,6 +121,8 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>, config: &AppConfig) ->
                         topic: publish.topic.to_string(),
                         payload: String::from_utf8_lossy(&publish.payload).to_string(),
                         timestamp: chrono::Utc::now().timestamp(),
+                        data_type: None, // Filled in DB worker
+                        value_num: None, // Filled in DB worker
                     };
                     info!("Received = {:?}", message);
                     
@@ -142,4 +162,42 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>, config: &AppConfig) ->
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_analyze_payload() {
+        // Number check
+        let (dt, val) = analyze_payload("123.45");
+        assert_eq!(dt.as_deref(), Some("number"));
+        assert_eq!(val, Some(123.45));
+
+        // Integer as number
+        let (dt, val) = analyze_payload("42");
+        assert_eq!(dt.as_deref(), Some("number"));
+        assert_eq!(val, Some(42.0));
+
+        // JSON check
+        let (dt, val) = analyze_payload(r#"{"key": "value"}"#);
+        assert_eq!(dt.as_deref(), Some("json"));
+        assert_eq!(val, None);
+
+        // JSON Array check
+        let (dt, val) = analyze_payload(r#"[1, 2, 3]"#);
+        assert_eq!(dt.as_deref(), Some("json"));
+        assert_eq!(val, None);
+
+        // Text check
+        let (dt, val) = analyze_payload("Hello World");
+        assert_eq!(dt.as_deref(), Some("text"));
+        assert_eq!(val, None);
+        
+        // Invalid JSON text
+        let (dt, val) = analyze_payload("{key: value}"); // Invalid JSON (no quotes)
+        assert_eq!(dt.as_deref(), Some("text"));
+        assert_eq!(val, None);
+    }
 }

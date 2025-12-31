@@ -1,5 +1,4 @@
-use sqlx::sqlite::{SqlitePool, SqliteConnectOptions};
-use std::str::FromStr;
+use sqlx::sqlite::SqlitePool;
 use tauri::Manager;
 use tracing::error;
 
@@ -7,6 +6,7 @@ mod broker;
 mod mqtt;
 mod commands;
 mod config;
+mod database;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -36,37 +36,20 @@ pub fn run() {
                 std::fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
             }
             let db_path = app_data_dir.join("app_data.db");
-            let db_url = format!("sqlite:{}", db_path.to_string_lossy());
-
-            let options = SqliteConnectOptions::from_str(&db_url)
-                .unwrap()
-                .create_if_missing(true);
-
+            
             let pool = tauri::async_runtime::block_on(async {
-                match SqlitePool::connect_with(options).await {
-                    Ok(pool) => {
-                        // Create table if not exists
-                        if let Err(e) = sqlx::query("CREATE TABLE IF NOT EXISTS messages (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            topic TEXT NOT NULL,
-                            payload TEXT NOT NULL,
-                            timestamp INTEGER NOT NULL
-                        )")
-                        .execute(&pool)
-                        .await {
-                            error!("Failed to create tables: {}", e);
-                            Some(pool)
-                        } else {
-                            Some(pool)
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to connect to DB: {}", e);
-                        None
-                    }
-                }
+                database::init(app.handle(), db_path).await
             });
-            app.manage(pool);
+
+            match pool {
+                Ok(pool) => {
+                    app.manage(Some(pool));
+                }
+                Err(e) => {
+                    error!("Failed to initialize database: {}", e);
+                    app.manage::<Option<SqlitePool>>(None);
+                }
+            }
 
             let handle = app.handle().clone();
             mqtt::init(&handle, &config).expect("Failed to initialize MQTT client");

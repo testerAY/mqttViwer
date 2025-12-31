@@ -162,7 +162,7 @@ pub async fn get_history(
     // Using non-macro query_as for easier type casting.
     
     let messages = sqlx::query_as::<_, MqttMessage>(
-        "SELECT topic, payload, timestamp FROM messages WHERE topic LIKE ? ORDER BY timestamp DESC LIMIT ?"
+        "SELECT topic, payload, timestamp, data_type, value_num FROM messages WHERE topic LIKE ? ORDER BY timestamp DESC LIMIT ?"
     )
     .bind(filter)
     .bind(limit)
