@@ -6,6 +6,7 @@ import { useAppStore } from './stores/useAppStore';
 import { storeToRefs } from 'pinia';
 import DashboardGrid from './components/dashboard/DashboardGrid.vue';
 import SettingsModal from './components/SettingsModal.vue';
+import ToastContainer from './components/ToastContainer.vue';
 
 const mqttStore = useMqttStore();
 const { isConnected } = storeToRefs(mqttStore);
@@ -184,6 +185,7 @@ onMounted(async () => {
       </div>
     </main>
     <SettingsModal :open="showSettings" @close="showSettings = false" />
+    <ToastContainer />
   </div>
 </template>
 

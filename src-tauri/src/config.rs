@@ -9,6 +9,12 @@ pub struct BrokerConfig {
     pub mode: String, // "internal" or "external"
     pub host: String,
     pub port: u16,
+    #[serde(default = "default_subscription_topic")]
+    pub subscription_topic: String,
+}
+
+fn default_subscription_topic() -> String {
+    "#".to_string()
 }
 
 impl Default for BrokerConfig {
@@ -17,6 +23,7 @@ impl Default for BrokerConfig {
             mode: "internal".to_string(),
             host: "127.0.0.1".to_string(),
             port: 9883,
+            subscription_topic: default_subscription_topic(),
         }
     }
 }

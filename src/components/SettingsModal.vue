@@ -79,6 +79,15 @@ const handleSave = async () => {
           </div>
         </div>
 
+        <!-- Subscription Topic -->
+        <div class="form-control w-full">
+          <label class="label"><span class="label-text">Subscription Topic</span></label>
+          <input v-model="localConfig.broker.subscription_topic" type="text" class="input input-bordered" />
+          <label class="label">
+            <span class="label-text-alt">Use MQTT topic syntax (e.g., `sensors/#`). Restart required.</span>
+          </label>
+        </div>
+
         <div class="divider">Data Retention</div>
 
         <!-- Retention Policy -->

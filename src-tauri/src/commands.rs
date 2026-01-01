@@ -1,5 +1,5 @@
 use rumqttc::{AsyncClient, QoS};
-use sqlx::SqlitePool;
+use sqlx::{FromRow, SqlitePool};
 use crate::mqtt::MqttMessage;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -204,4 +204,29 @@ pub async fn export_widget_data_as_csv(
 
     let csv_data = String::from_utf8(wtr.into_inner().map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     Ok(csv_data)
+}
+
+#[derive(FromRow)]
+struct TopicRow {
+    topic: String,
+}
+
+#[tauri::command]
+pub async fn get_distinct_topics(
+    pool: tauri::State<'_, Option<SqlitePool>>,
+) -> Result<Vec<String>, String> {
+    let p = match pool.inner() {
+        Some(pool) => pool,
+        None => return Ok(vec![]),
+    };
+
+    let rows = sqlx::query_as::<_, TopicRow>(
+        "SELECT DISTINCT topic FROM messages ORDER BY topic ASC"
+    )
+    .fetch_all(p)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let topics = rows.into_iter().map(|row| row.topic).collect();
+    Ok(topics)
 }

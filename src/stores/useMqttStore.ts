@@ -7,14 +7,20 @@ import type { MqttMessage, MqttStatus } from '../types/mqtt';
 
 export const useMqttStore = defineStore('mqtt', () => {
     const dataMap = shallowRef<Map<string, MqttMessage>>(new Map());
-    const isConnected = ref(false); // This will be updated later
+    const isConnected = ref(false);
+    const lastMessages = ref<Record<string, MqttMessage>>({});
 
     const setupListener = async () => {
         await listen<MqttMessage>('mqtt-message', (event) => {
             const newMessage = event.payload;
+            
+            // For reactivity in DashboardGrid
             const newMap = new Map(dataMap.value);
             newMap.set(newMessage.topic, newMessage);
             dataMap.value = newMap;
+            
+            // For preview in settings
+            lastMessages.value[newMessage.topic] = newMessage;
         });
 
         await listen<MqttStatus>('mqtt-status', (event) => {
@@ -40,6 +46,7 @@ export const useMqttStore = defineStore('mqtt', () => {
             const newMap = new Map(dataMap.value);
             newMap.set(topic, msg);
             dataMap.value = newMap;
+            lastMessages.value[topic] = msg;
         }
     };
 
@@ -63,6 +70,7 @@ export const useMqttStore = defineStore('mqtt', () => {
             const newMap = new Map(dataMap.value);
             newMap.set(topic, msg);
             dataMap.value = newMap;
+            lastMessages.value[topic] = msg;
         }, 1000);
     };
 
@@ -78,6 +86,7 @@ export const useMqttStore = defineStore('mqtt', () => {
     return {
         dataMap,
         isConnected,
+        lastMessages,
         setupListener,
         publishMessage,
         startSimulation,

@@ -33,6 +33,28 @@ fn analyze_payload(payload: &str) -> (Option<String>, Option<f64>) {
     }
 }
 
+async fn write_batch_to_db(pool: &SqlitePool, messages: &[MqttMessage]) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    for msg in messages {
+        let (data_type, value_num) = analyze_payload(&msg.payload);
+
+        sqlx::query(
+            "INSERT INTO messages (topic, payload, timestamp, data_type, value_num) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(&msg.topic)
+        .bind(&msg.payload)
+        .bind(msg.timestamp)
+        .bind(data_type)
+        .bind(value_num)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(())
+}
+
 pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>, config: &AppConfig) -> Result<(), Box<dyn std::error::Error>> {
     let mut mqttoptions = MqttOptions::new("rumqtt-client", &config.broker.host, config.broker.port);
     mqttoptions.set_keep_alive(Duration::from_secs(5));
@@ -52,23 +74,44 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>, config: &AppConfig) ->
     // Spawn DB writer task
     if let Some(pool) = pool_opt.clone() {
         tauri::async_runtime::spawn(async move {
-            while let Some(msg) = rx.recv().await {
-                // Payload analysis
-                let (data_type, value_num) = analyze_payload(&msg.payload);
+            let mut buffer: Vec<MqttMessage> = Vec::with_capacity(100);
+            loop {
+                // Use a timeout to process the buffer periodically
+                let recv_result = tokio::time::timeout(Duration::from_millis(500), rx.recv()).await;
 
-                 let result = sqlx::query(
-                    "INSERT INTO messages (topic, payload, timestamp, data_type, value_num) VALUES (?, ?, ?, ?, ?)"
-                )
-                .bind(&msg.topic)
-                .bind(&msg.payload)
-                .bind(msg.timestamp) 
-                .bind(data_type)
-                .bind(value_num)
-                .execute(&pool)
-                .await;
-
-                if let Err(e) = result {
-                    error!("Failed to insert message into database: {}", e);
+                match recv_result {
+                    // Message received, add to buffer
+                    Ok(Some(msg)) => {
+                        buffer.push(msg);
+                        if buffer.len() >= 100 {
+                            // Buffer is full, write to DB
+                            if let Err(e) = write_batch_to_db(&pool, &buffer).await {
+                                error!("Failed to write batch to database: {}", e);
+                            }
+                            buffer.clear();
+                        }
+                    }
+                    // Channel closed
+                    Ok(None) => {
+                        // Write any remaining messages before exiting
+                        if !buffer.is_empty() {
+                             if let Err(e) = write_batch_to_db(&pool, &buffer).await {
+                                error!("Failed to write final batch to database: {}", e);
+                            }
+                            buffer.clear();
+                        }
+                        break; // Exit loop
+                    }
+                    // Timeout elapsed
+                    Err(_) => {
+                        // Timeout, write buffer to DB if not empty
+                        if !buffer.is_empty() {
+                            if let Err(e) = write_batch_to_db(&pool, &buffer).await {
+                                error!("Failed to write batch to database on timeout: {}", e);
+                            }
+                            buffer.clear();
+                        }
+                    }
                 }
             }
         });
@@ -103,14 +146,17 @@ pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>, config: &AppConfig) ->
 
     let app_handle = app.clone();
     let client_clone = client.clone();
+    let config_clone = config.clone();
 
     tauri::async_runtime::spawn(async move {
         // Wait for broker to start up completely
         tokio::time::sleep(Duration::from_secs(2)).await;
 
-        // Subscribe to all topics
-        if let Err(e) = client_clone.subscribe("#", QoS::AtMostOnce).await {
-             error!("Failed to subscribe: {}", e);
+        // Subscribe to the configured topic
+        let topic = &config_clone.broker.subscription_topic;
+        info!("Subscribing to topic: {}", topic);
+        if let Err(e) = client_clone.subscribe(topic, QoS::AtMostOnce).await {
+             error!("Failed to subscribe to topic {}: {}", topic, e);
              tokio::time::sleep(Duration::from_secs(1)).await;
         }
 

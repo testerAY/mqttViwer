@@ -71,7 +71,8 @@ pub fn run() {
             commands::get_last_layout_path,
             commands::get_app_settings,
             commands::save_app_settings,
-            commands::export_widget_data_as_csv
+            commands::export_widget_data_as_csv,
+            commands::get_distinct_topics
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
