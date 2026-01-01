@@ -19,7 +19,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' ipc: http: https: ws: wss: asset: plugin: data: blob: *"
     }
   },
   "bundle": {

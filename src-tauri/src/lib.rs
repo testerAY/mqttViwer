@@ -12,6 +12,7 @@ mod mqtt;
 mod commands;
 mod config;
 mod database;
+mod plugins;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -60,6 +61,7 @@ pub fn run() {
             mqtt::init(&handle, &config).expect("Failed to initialize MQTT client");
             Ok(())
         })
+        .register_uri_scheme_protocol("plugin", plugins::plugin_protocol_handler)
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -72,7 +74,9 @@ pub fn run() {
             commands::get_app_settings,
             commands::save_app_settings,
             commands::export_widget_data_as_csv,
-            commands::get_distinct_topics
+            commands::get_distinct_topics,
+            plugins::get_plugin_list,
+            plugins::load_plugin_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

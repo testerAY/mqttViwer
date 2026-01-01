@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted } from 'vue';
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import { useMqttStore } from '../../stores/useMqttStore';
+import { usePluginStore } from '../../stores/usePluginStore';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
+import PluginHost from './PluginHost.vue';
 
 const props = defineProps<{
   widget: WidgetConfig;
@@ -20,6 +22,10 @@ const emit = defineEmits<{
 }>();
 
 const mqttStore = useMqttStore();
+const pluginStore = usePluginStore();
+const pluginTagName = ref<string | null>(null);
+const loadError = ref<string | null>(null);
+const isLoading = ref(false);
 
 const message = computed(() => {
   if (!props.widget.topic) return undefined;
@@ -31,6 +37,43 @@ const SwitchWidget = defineAsyncComponent(() => import('../widgets/SwitchWidget.
 const ChartWidget = defineAsyncComponent(() => import('../widgets/ChartWidget.vue'));
 const GaugeWidget = defineAsyncComponent(() => import('../widgets/GaugeWidget.vue'));
 const SliderWidget = defineAsyncComponent(() => import('../widgets/SliderWidget.vue'));
+
+watch(() => props.widget.type, async (newType) => {
+  const builtInTypes = ['value-display', 'switch', 'chart', 'gauge', 'slider'];
+  if (builtInTypes.includes(newType)) {
+    pluginTagName.value = null;
+    loadError.value = null;
+    return;
+  }
+
+  // Try to load plugin
+  isLoading.value = true;
+  loadError.value = null;
+  
+  try {
+      const success = await pluginStore.loadPlugin(newType);
+      if (success) {
+        const plugin = pluginStore.plugins.find(p => p.id === newType);
+        if (plugin) {
+          pluginTagName.value = plugin.tagName;
+        } else {
+           loadError.value = `Plugin loaded but manifest not found for ${newType}`;
+        }
+      } else {
+          pluginTagName.value = null;
+          const isKnown = pluginStore.plugins.some(p => p.id === newType);
+          if (isKnown) {
+              loadError.value = `Failed to load script for plugin "${newType}". Check console for details.`;
+          } else {
+              loadError.value = `Plugin "${newType}" not found. Available: ${pluginStore.plugins.map(p => p.id).join(', ')}`;
+          }
+      }
+  } catch (e) {
+      loadError.value = `Error loading plugin: ${e}`;
+  } finally {
+      isLoading.value = false;
+  }
+}, { immediate: true });
 
 const widgetComponent = computed(() => {
   switch (props.widget.type) {
@@ -45,7 +88,7 @@ const widgetComponent = computed(() => {
     case 'slider':
       return SliderWidget;
     default:
-      return null;
+      return pluginTagName.value ? PluginHost : null;
   }
 });
 
@@ -107,9 +150,12 @@ const exportCsv = async () => {
         :is="widgetComponent"
         :config="widget"
         :message="message"
+        :tagName="pluginTagName"
       />
-      <div v-else class="flex items-center justify-center h-full opacity-50">
-        Widget type "{{ widget.type }}" not implemented yet
+      <div v-else class="flex items-center justify-center h-full opacity-50 flex-col p-4 text-center">
+        <div v-if="isLoading">Loading plugin...</div>
+        <div v-else-if="loadError" class="text-error text-xs">{{ loadError }}</div>
+        <div v-else>Widget type "{{ widget.type }}" not implemented yet</div>
       </div>
     </div>
   </div>

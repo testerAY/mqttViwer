@@ -38,3 +38,4 @@ sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio"] }
 tauri-plugin-dialog = "2.4.2"
 tauri-plugin-fs = "2.4.4"
 csv = "1.1"
+mime_guess = "2.0"
