@@ -218,6 +218,18 @@ const handleSave = () => {
                </div>
              </div>
            </template>
+
+            <template v-if="localConfig.type === 'chart'">
+             <div class="divider">Chart Axes</div>
+             <div class="form-control w-full">
+               <label class="label"><span class="label-text">X-Axis Key (Timestamp)</span></label>
+               <input v-model="localConfig.settings.xKey" type="text" class="input input-bordered font-mono" placeholder="e.g. timestamp" />
+             </div>
+             <div class="form-control w-full">
+               <label class="label"><span class="label-text">Y-Axis Key (Value)</span></label>
+               <input v-model="localConfig.settings.yKey" type="text" class="input input-bordered font-mono" placeholder="e.g. value" />
+             </div>
+           </template>           
         </div>
 
         <!-- Data Mapping Tab -->

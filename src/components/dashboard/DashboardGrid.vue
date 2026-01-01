@@ -6,6 +6,7 @@ import { useDashboardStore } from '../../stores/useDashboardStore';
 import type { WidgetConfig } from '../../types/dashboard';
 import WidgetHost from './WidgetHost.vue';
 import WidgetSettingsModal from './WidgetSettingsModal.vue';
+import { ask } from '@tauri-apps/plugin-dialog';
 
 const dashboardStore = useDashboardStore();
 // isDraggingNewWidget を確実に取得
@@ -84,8 +85,12 @@ const handleDrop = async (event: DragEvent) => {
   }
 };
 
-const handleRemoveWidget = (id: string) => {
-  if (confirm('Are you sure you want to remove this widget?')) {
+const handleRemoveWidget = async (id: string) => {
+  const yes = await ask('Are you sure you want to remove this widget?',{
+    title: 'Confirm Removal',
+    kind: 'warning'
+  });
+  if (yes) {
     dashboardStore.removeWidget(id);
   }
 };

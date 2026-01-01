@@ -158,28 +158,6 @@ onMounted(async () => {
 
       <!-- Dashboard Area -->
       <div class="flex-1 p-4 overflow-y-auto relative">
-        <!-- Publish Test Section -->
-        <div class="card bg-base-200 shadow-xl mb-6">
-          <div class="card-body">
-            <h2 class="card-title">Publish Test</h2>
-            <div class="flex gap-4 items-end flex-wrap">
-              <div class="form-control w-full max-w-xs">
-                <label class="label">
-                  <span class="label-text">Topic</span>
-                </label>
-                <input v-model="publishTopic" type="text" placeholder="Topic" class="input input-bordered w-full max-w-xs" />
-              </div>
-              <div class="form-control w-full max-w-xs">
-                <label class="label">
-                  <span class="label-text">Payload</span>
-                </label>
-                <input v-model="publishPayload" type="text" placeholder="Payload" class="input input-bordered w-full max-w-xs" />
-              </div>
-              <button class="btn btn-primary" @click="handlePublish">Send</button>
-            </div>
-          </div>
-        </div>
-
         <!-- Dashboard Grid -->
         <DashboardGrid />
       </div>
