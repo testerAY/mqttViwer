@@ -2,6 +2,9 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import type { MqttMessage } from '../types/mqtt';
 import type { MqttViewerSDK } from '../types/plugin';
+import * as echarts from 'echarts'; // 本体側のECharts
+import * as Vue from 'vue';         // 本体側のVue
+import { registerWidget } from '../registries/widgetRegistry'; // 作成したレジストリ
 
 export async function initPluginSdk() {
   const subscribers = new Map<string, Set<(topic: string, message: string) => void>>();
@@ -43,6 +46,13 @@ export async function initPluginSdk() {
     getTheme() {
       // Simple implementation for now
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    },
+    libs:{
+      vue: Vue,
+      echarts: echarts
+    },
+    registerWidget: (id: string, component: any) => {
+      registerWidget(id, component);
     }
   };
 

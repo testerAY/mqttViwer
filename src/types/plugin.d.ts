@@ -3,6 +3,11 @@ export interface MqttViewerSDK {
   unsubscribe(topic: string, callback: (topic: string, message: string) => void): void;
   publish(topic: string, message: string): Promise<void>;
   getTheme(): 'light' | 'dark' | 'system';
+  libs: {
+    vue: any;
+    echarts: any;
+  };
+  registerWidget(id: string, component: any): void;
 }
 
 export interface PluginConfigField {
