@@ -1,17 +1,21 @@
 use sqlx::sqlite::SqlitePool;
 use tauri::Manager;
+use tokio::sync::Mutex;
 use tracing::error;
 
+// Layout file lock to prevent race conditions
+pub struct LayoutFileLock(pub Mutex<()>);
+
 // Add use statements for plugins
-use tauri_plugin_fs;
 use tauri_plugin_dialog;
+use tauri_plugin_fs;
 use tauri_plugin_opener;
 
 mod broker;
-mod mqtt;
 mod commands;
 mod config;
 mod database;
+mod mqtt;
 mod plugins;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -21,11 +25,10 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             // Load config
-            let config = config::load_config(app.handle())
-                .unwrap_or_else(|e| {
-                    error!("Failed to load config: {}, using defaults", e);
-                    config::AppConfig::default()
-                });
+            let config = config::load_config(app.handle()).unwrap_or_else(|e| {
+                error!("Failed to load config: {}, using defaults", e);
+                config::AppConfig::default()
+            });
 
             // Start Broker asynchronously if mode is internal
             if config.broker.mode == "internal" {
@@ -36,13 +39,16 @@ pub fn run() {
             }
 
             // App Data ディレクトリ配下に保存
-            let app_data_dir = app.path().app_data_dir().expect("failed to get app data dir");
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("failed to get app data dir");
             // ディレクトリがなければ作成
             if !app_data_dir.exists() {
                 std::fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
             }
             let db_path = app_data_dir.join("app_data.db");
-            
+
             let pool = tauri::async_runtime::block_on(async {
                 database::init(app.handle(), db_path).await
             });
@@ -56,6 +62,9 @@ pub fn run() {
                     app.manage::<Option<SqlitePool>>(None);
                 }
             }
+
+            // Initialize layout file lock
+            app.manage(LayoutFileLock(Mutex::new(())));
 
             let handle = app.handle().clone();
             mqtt::init(&handle, &config).expect("Failed to initialize MQTT client");

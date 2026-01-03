@@ -185,8 +185,13 @@ pub fn init<R: tauri::Runtime>(
 
         // Subscribe to the configured topic
         let topic = &config_clone.broker.subscription_topic;
-        info!("Subscribing to topic: {}", topic);
-        if let Err(e) = client_clone.subscribe(topic, QoS::AtMostOnce).await {
+        let qos = match config_clone.broker.qos {
+            1 => QoS::AtLeastOnce,
+            2 => QoS::ExactlyOnce,
+            _ => QoS::AtMostOnce,
+        };
+        info!("Subscribing to topic: {} with QoS: {:?}", topic, qos);
+        if let Err(e) = client_clone.subscribe(topic, qos).await {
             error!("Failed to subscribe to topic {}: {}", topic, e);
             tokio::time::sleep(Duration::from_secs(1)).await;
         }

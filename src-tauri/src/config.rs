@@ -13,10 +13,16 @@ pub struct BrokerConfig {
     pub password: Option<String>,
     #[serde(default = "default_subscription_topic")]
     pub subscription_topic: String,
+    #[serde(default = "default_qos")]
+    pub qos: u8,
 }
 
 fn default_subscription_topic() -> String {
     "#".to_string()
+}
+
+fn default_qos() -> u8 {
+    1
 }
 
 impl Default for BrokerConfig {
@@ -28,6 +34,7 @@ impl Default for BrokerConfig {
             username: None,
             password: None,
             subscription_topic: default_subscription_topic(),
+            qos: default_qos(),
         }
     }
 }

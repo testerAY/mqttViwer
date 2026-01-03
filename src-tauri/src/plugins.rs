@@ -1,3 +1,4 @@
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use tauri::http::{Response, StatusCode};
@@ -69,7 +70,9 @@ pub fn load_plugin_file<R: Runtime>(
         return Err("Access denied".to_string());
     }
 
-    fs::read_to_string(target_path).map_err(|e| e.to_string())
+    let content = fs::read(target_path).map_err(|e| e.to_string())?;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(content);
+    Ok(encoded)
 }
 
 pub fn plugin_protocol_handler<R: Runtime>(

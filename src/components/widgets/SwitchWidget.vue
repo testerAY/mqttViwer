@@ -16,6 +16,8 @@ const isPublishing = ref(false);
 
 const onPayload = computed(() => props.config.settings?.onPayload ?? 'ON');
 const offPayload = computed(() => props.config.settings?.offPayload ?? 'OFF');
+const qos = computed(() => props.config.settings?.qos ?? 0);
+const retain = computed(() => props.config.settings?.retain ?? false);
 
 const isOn = computed(() => props.message?.payload === onPayload.value);
 
@@ -24,7 +26,7 @@ const toggle = async () => {
   const payload = isOn.value ? offPayload.value : onPayload.value;
   isPublishing.value = true;
   try {
-    await mqttStore.publishMessage(props.config.topic, payload);
+    await mqttStore.publishMessage(props.config.topic, payload, qos.value, retain.value);
   } catch (e) {
     console.error('Failed to toggle switch:', e);
     toastStore.addToast('Failed to publish message', 'error');
@@ -36,14 +38,8 @@ const toggle = async () => {
 
 <template>
   <div class="flex-1 flex flex-col items-center justify-center p-4 w-full h-full">
-    <input 
-      type="checkbox" 
-      class="toggle toggle-primary toggle-lg"
-      :class="{ 'opacity-50': isPublishing }"
-      :checked="isOn" 
-      :disabled="isPublishing"
-      @click.prevent="toggle"
-    />
+    <input type="checkbox" class="toggle toggle-primary toggle-lg" :class="{ 'opacity-50': isPublishing }"
+      :checked="isOn" :disabled="isPublishing" @click.prevent="toggle" />
     <div v-if="message" class="text-xs opacity-50 mt-2">
       {{ message.payload }}
     </div>

@@ -29,13 +29,13 @@ export const useMqttStore = defineStore('mqtt', () => {
         });
     };
 
-    const publishMessage = async (topic: string, payload: string) => {
+    const publishMessage = async (topic: string, payload: string, qos: number = 0, retain: boolean = false) => {
         try {
-            await invoke('publish_message', { topic, payload });
+            await invoke('publish_message', { topic, payload, qos, retain });
         } catch (error) {
             console.error('Failed to publish message:', error);
             // fallback for simulation
-            console.log(`[Simulation] Published to ${topic}: ${payload}`);
+            console.log(`[Simulation] Published to ${topic}: ${payload} (QoS: ${qos}, Retain: ${retain})`);
             
             // Update local state for simulation
             const msg: MqttMessage = {

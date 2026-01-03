@@ -1,11 +1,12 @@
-use rumqttc::{AsyncClient, QoS};
-use sqlx::{FromRow, SqlitePool};
+use crate::config;
 use crate::mqtt::MqttMessage;
+use crate::LayoutFileLock;
+use rumqttc::{AsyncClient, QoS};
 use serde::{Deserialize, Serialize};
+use sqlx::{FromRow, SqlitePool};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::config;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WidgetConfig {
@@ -45,7 +46,10 @@ pub async fn get_app_settings(app: tauri::AppHandle) -> Result<config::AppConfig
 }
 
 #[tauri::command]
-pub async fn save_app_settings(app: tauri::AppHandle, config: config::AppConfig) -> Result<(), String> {
+pub async fn save_app_settings(
+    app: tauri::AppHandle,
+    config: config::AppConfig,
+) -> Result<(), String> {
     config::save_config(&app, &config)
 }
 
@@ -67,10 +71,18 @@ fn load_layout_impl(path: &Path) -> Result<Vec<DashboardItem>, String> {
 #[tauri::command]
 pub async fn save_layout(
     app: tauri::AppHandle,
+    lock: tauri::State<'_, LayoutFileLock>,
     path: String,
     layout: Vec<DashboardItem>,
 ) -> Result<(), String> {
-    println!("Backend: save_layout called. Path: {}, Items: {}", path, layout.len());
+    println!(
+        "Backend: save_layout called. Path: {}, Items: {}",
+        path,
+        layout.len()
+    );
+    // Acquire lock to prevent race conditions
+    let _guard = lock.0.lock().await;
+
     let layout_path = PathBuf::from(&path);
     save_layout_impl(&layout_path, &layout)?;
     update_app_config(&app, path)?;
@@ -78,7 +90,10 @@ pub async fn save_layout(
 }
 
 #[tauri::command]
-pub async fn load_layout(app: tauri::AppHandle, path: String) -> Result<Vec<DashboardItem>, String> {
+pub async fn load_layout(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<Vec<DashboardItem>, String> {
     println!("Backend: load_layout called. Path: {}", path);
     let layout_path = PathBuf::from(&path);
     let layout = load_layout_impl(&layout_path)?;
@@ -96,22 +111,20 @@ mod tests {
         let temp_dir = env::temp_dir();
         let file_path = temp_dir.join("test_layout.json");
 
-        let layout = vec![
-            DashboardItem {
-                i: "1".to_string(),
-                x: 0,
-                y: 0,
-                w: 2,
-                h: 2,
-                widget: WidgetConfig {
-                    id: "1".to_string(),
-                    widget_type: "test".to_string(),
-                    title: "Test Widget".to_string(),
-                    topic: None,
-                    settings: None,
-                },
-            }
-        ];
+        let layout = vec![DashboardItem {
+            i: "1".to_string(),
+            x: 0,
+            y: 0,
+            w: 2,
+            h: 2,
+            widget: WidgetConfig {
+                id: "1".to_string(),
+                widget_type: "test".to_string(),
+                title: "Test Widget".to_string(),
+                topic: None,
+                settings: None,
+            },
+        }];
 
         // Save
         let result = save_layout_impl(&file_path, &layout);
@@ -136,9 +149,17 @@ pub async fn publish_message(
     client: tauri::State<'_, AsyncClient>,
     topic: String,
     payload: String,
+    qos: u8,
+    retain: bool,
 ) -> Result<(), String> {
+    let qos_level = match qos {
+        1 => QoS::AtLeastOnce,
+        2 => QoS::ExactlyOnce,
+        _ => QoS::AtMostOnce,
+    };
+
     client
-        .publish(topic, QoS::AtLeastOnce, false, payload.as_bytes())
+        .publish(topic, qos_level, retain, payload.as_bytes())
         .await
         .map_err(|e| e.to_string())
 }
@@ -156,7 +177,7 @@ pub async fn get_history(
 
     let limit = limit.unwrap_or(100);
     let filter = topic_filter.unwrap_or("%".to_string());
-    
+
     let messages = sqlx::query_as::<_, MqttMessage>(
         "SELECT topic, payload, timestamp, data_type, value_num FROM messages WHERE topic LIKE ? ORDER BY timestamp DESC LIMIT ?"
     )
@@ -192,17 +213,26 @@ pub async fn export_widget_data_as_csv(
     }
 
     let mut wtr = csv::WriterBuilder::new().from_writer(vec![]);
-    
-    wtr.write_record(&["timestamp", "topic", "payload", "data_type", "value_num"]).map_err(|e| e.to_string())?;
+
+    wtr.write_record(&["timestamp", "topic", "payload", "data_type", "value_num"])
+        .map_err(|e| e.to_string())?;
 
     for msg in messages {
         let timestamp_str = msg.timestamp.to_string();
         let value_num_str = msg.value_num.map(|v| v.to_string()).unwrap_or_default();
         let data_type_str = msg.data_type.as_deref().unwrap_or_default();
-        wtr.write_record(&[&timestamp_str, &msg.topic, &msg.payload, data_type_str, &value_num_str]).map_err(|e| e.to_string())?;
+        wtr.write_record(&[
+            &timestamp_str,
+            &msg.topic,
+            &msg.payload,
+            data_type_str,
+            &value_num_str,
+        ])
+        .map_err(|e| e.to_string())?;
     }
 
-    let csv_data = String::from_utf8(wtr.into_inner().map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    let csv_data = String::from_utf8(wtr.into_inner().map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
     Ok(csv_data)
 }
 
@@ -220,12 +250,11 @@ pub async fn get_distinct_topics(
         None => return Ok(vec![]),
     };
 
-    let rows = sqlx::query_as::<_, TopicRow>(
-        "SELECT DISTINCT topic FROM messages ORDER BY topic ASC"
-    )
-    .fetch_all(p)
-    .await
-    .map_err(|e| e.to_string())?;
+    let rows =
+        sqlx::query_as::<_, TopicRow>("SELECT DISTINCT topic FROM messages ORDER BY topic ASC")
+            .fetch_all(p)
+            .await
+            .map_err(|e| e.to_string())?;
 
     let topics = rows.into_iter().map(|row| row.topic).collect();
     Ok(topics)

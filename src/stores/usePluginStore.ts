@@ -45,8 +45,16 @@ export const usePluginStore = defineStore('plugins', () => {
       invoke<string>('load_plugin_file', { 
         pluginId: plugin.id, 
         fileName: plugin.main 
-      }).then(content => {
-        const blob = new Blob([content], { type: 'application/javascript' });
+      }).then(base64Content => {
+        // Decode Base64 to binary
+        const binaryString = atob(base64Content);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+
+        const blob = new Blob([bytes], { type: 'application/javascript' });
         const url = URL.createObjectURL(blob);
         
         const script = document.createElement('script');

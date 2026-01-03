@@ -236,6 +236,23 @@ const handleSave = () => {
                 placeholder="e.g. °C, %" />
             </div>
 
+            <div class="form-control w-full" v-if="localConfig.type === 'switch' || localConfig.type === 'slider'">
+              <div class="divider">MQTT Publish Settings</div>
+              <label class="label"><span class="label-text">QoS Level</span></label>
+              <select v-model.number="localConfig.settings.qos" class="select select-bordered">
+                <option :value="0">0 (At Most Once)</option>
+                <option :value="1">1 (At Least Once)</option>
+                <option :value="2">2 (Exactly Once)</option>
+              </select>
+            </div>
+
+            <div class="form-control w-full" v-if="localConfig.type === 'switch' || localConfig.type === 'slider'">
+              <label class="label cursor-pointer justify-start gap-4">
+                <input v-model="localConfig.settings.retain" type="checkbox" class="checkbox" />
+                <span class="label-text">Retain Message</span>
+              </label>
+            </div>
+
             <!-- Type Specific -->
             <template v-if="localConfig.type === 'gauge'">
               <div class="divider">Gauge Settings</div>
