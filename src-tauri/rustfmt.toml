@@ -1,0 +1,14 @@
+# Coding Conventions: "Use 4 spaces for indentation"
+tab_spaces = 4
+
+edition = "2021"
+
+# Coding Conventions: "Organize imports: std library first, external crates second, internal modules last"
+# imports_granularity = "Module" # お好みで (Crate, Module, Item)
+group_imports = "StdExternalCrate"
+reorder_imports = true
+
+# その他、Tauri/Rustプロジェクトで推奨される一般的な整形ルール
+newline_style = "Auto"
+max_width = 100
+use_field_init_shorthand = true

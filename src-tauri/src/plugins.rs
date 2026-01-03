@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use tauri::{AppHandle, Manager, Runtime};
 use tauri::http::{Response, StatusCode};
+use tauri::{AppHandle, Manager, Runtime};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PluginManifest {
@@ -12,13 +12,16 @@ pub struct PluginManifest {
     #[serde(rename = "tagName")]
     pub tag_name: String,
     pub description: Option<String>,
+    pub capabilities: Option<serde_json::Value>,
+    #[serde(rename = "configSchema")]
+    pub config_schema: Option<serde_json::Value>,
 }
 
 #[tauri::command]
 pub fn get_plugin_list<R: Runtime>(app: AppHandle<R>) -> Result<Vec<PluginManifest>, String> {
     let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let plugins_dir = app_data_dir.join("plugins");
-    
+
     println!("Scanning plugins directory: {:?}", plugins_dir);
 
     if !plugins_dir.exists() {
@@ -37,11 +40,9 @@ pub fn get_plugin_list<R: Runtime>(app: AppHandle<R>) -> Result<Vec<PluginManife
                 let manifest_path = path.join("manifest.json");
                 if manifest_path.exists() {
                     match fs::read_to_string(&manifest_path) {
-                        Ok(content) => {
-                            match serde_json::from_str::<PluginManifest>(&content) {
-                                Ok(manifest) => plugins.push(manifest),
-                                Err(e) => println!("Failed to parse manifest for {:?}: {}", path, e),
-                            }
+                        Ok(content) => match serde_json::from_str::<PluginManifest>(&content) {
+                            Ok(manifest) => plugins.push(manifest),
+                            Err(e) => println!("Failed to parse manifest for {:?}: {}", path, e),
                         },
                         Err(e) => println!("Failed to read manifest for {:?}: {}", path, e),
                     }
@@ -54,11 +55,15 @@ pub fn get_plugin_list<R: Runtime>(app: AppHandle<R>) -> Result<Vec<PluginManife
 }
 
 #[tauri::command]
-pub fn load_plugin_file<R: Runtime>(app: AppHandle<R>, plugin_id: String, file_name: String) -> Result<String, String> {
+pub fn load_plugin_file<R: Runtime>(
+    app: AppHandle<R>,
+    plugin_id: String,
+    file_name: String,
+) -> Result<String, String> {
     let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let plugin_dir = app_data_dir.join("plugins").join(&plugin_id);
     let target_path = plugin_dir.join(&file_name);
-    
+
     // Security check
     if file_name.contains("..") || !target_path.starts_with(&plugin_dir) {
         return Err("Access denied".to_string());
@@ -90,29 +95,29 @@ fn handle_request<R: Runtime>(
 ) -> Result<Response<Vec<u8>>, Box<dyn std::error::Error>> {
     let uri = request.uri();
     let path_str = uri.path();
-    
+
     // uri path is like "/<plugin-id>/<file-path>"
     // e.g., "plugin://demo-widget/index.js" -> path is "/demo-widget/index.js"
-    
+
     // Remove leading slash
     let path_str = path_str.trim_start_matches('/');
-    
+
     // Split into plugin_id and file_path
     let parts: Vec<&str> = path_str.splitn(2, '/').collect();
-    
+
     if parts.len() < 2 {
         return Response::builder()
             .status(StatusCode::BAD_REQUEST)
             .body(vec![])
             .map_err(|e| e.into());
     }
-    
+
     let plugin_id = parts[0];
     let file_path = parts[1];
-    
+
     // Security check: prevent directory traversal
     if file_path.contains("..") {
-         return Response::builder()
+        return Response::builder()
             .status(StatusCode::FORBIDDEN)
             .body(vec![])
             .map_err(|e| e.into());
@@ -121,10 +126,10 @@ fn handle_request<R: Runtime>(
     let app_data_dir = app.path().app_data_dir()?;
     let plugin_dir = app_data_dir.join("plugins").join(plugin_id);
     let target_path = plugin_dir.join(file_path);
-    
+
     // Ensure the target path is actually within the plugin directory (double check)
     if !target_path.starts_with(&plugin_dir) {
-         return Response::builder()
+        return Response::builder()
             .status(StatusCode::FORBIDDEN)
             .body(vec![])
             .map_err(|e| e.into());
@@ -138,12 +143,10 @@ fn handle_request<R: Runtime>(
                 .header("Content-Type", mime_type.as_ref())
                 .body(content)
                 .map_err(|e| e.into())
-        },
-        Err(_) => {
-             Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(vec![])
-                .map_err(|e| e.into())
         }
+        Err(_) => Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(vec![])
+            .map_err(|e| e.into()),
     }
 }

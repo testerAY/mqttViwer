@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, computed } from 'vue';
 import { useMqttStore } from './stores/useMqttStore';
 import { useDashboardStore } from './stores/useDashboardStore';
 import { useAppStore } from './stores/useAppStore';
@@ -7,6 +7,7 @@ import { storeToRefs } from 'pinia';
 import DashboardGrid from './components/dashboard/DashboardGrid.vue';
 import SettingsModal from './components/SettingsModal.vue';
 import ToastContainer from './components/ToastContainer.vue';
+import { usePluginStore } from './stores/usePluginStore';
 
 const mqttStore = useMqttStore();
 const { isConnected } = storeToRefs(mqttStore);
@@ -32,33 +33,49 @@ const testHistory = async () => {
   console.log('History:', history);
 };
 
-const widgetTypes = [
-  { 
-    id: 'value-display', 
-    name: 'Value Display', 
-    icon: 'M7 20l4-16m2 16l4-16M6 9h14M4 15h14' 
+const pluginStore = usePluginStore();
+const { plugins } = storeToRefs(pluginStore);
+
+const builtInWidgets = [
+  {
+    id: 'value-display',
+    name: 'Value Display',
+    icon: 'M7 20l4-16m2 16l4-16M6 9h14M4 15h14'
   },
-  { 
-    id: 'chart', 
-    name: 'Chart', 
-    icon: 'M7 12l3-2 3 2 4-4M8 21l4-4 4 4M3 4v16a1 1 0 001 1h16' 
+  {
+    id: 'chart',
+    name: 'Chart',
+    icon: 'M7 12l3-2 3 2 4-4M8 21l4-4 4 4M3 4v16a1 1 0 001 1h16'
   },
-  { 
-    id: 'gauge', 
-    name: 'Gauge', 
-    icon: 'M12 20a8 8 0 100-16 8 8 0 000 16z M12 14v-4 M12 14l2 2' 
+  {
+    id: 'gauge',
+    name: 'Gauge',
+    icon: 'M12 20a8 8 0 100-16 8 8 0 000 16z M12 14v-4 M12 14l2 2'
   },
-  { 
-    id: 'switch', 
-    name: 'Switch', 
-    icon: 'M5 12h14M12 5l7 7-7 7' 
+  {
+    id: 'switch',
+    name: 'Switch',
+    icon: 'M5 12h14M12 5l7 7-7 7'
   },
-  { 
-    id: 'slider', 
-    name: 'Slider', 
-    icon: 'M4 6h16M4 12h16M4 18h16' 
+  {
+    id: 'slider',
+    name: 'Slider',
+    icon: 'M4 6h16M4 12h16M4 18h16'
   },
 ];
+
+// 標準ウィジェットとプラグインを結合したリストを生成
+const availableWidgets = computed(() => {
+  // プラグインをウィジェットパレット用の形式に変換
+  const pluginWidgets = plugins.value.map(p => ({
+    id: p.id,
+    name: p.name,
+    // プラグイン用の汎用アイコン（必要に応じてmanifestから取得するように拡張可能）
+    icon: 'M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z'
+  }));
+
+  return [...builtInWidgets, ...pluginWidgets];
+});
 
 const handleDragStart = (event: DragEvent, type: string) => {
   dashboardStore.setDraggingNewWidget(true);
@@ -80,16 +97,13 @@ const handleGlobalDragOver = (event: DragEvent) => {
 
 onMounted(async () => {
   await appStore.loadSettings();
+  await pluginStore.fetchPlugins();
   mqttStore.setupListener();
 });
 </script>
 
 <template>
-  <div 
-    class="flex flex-col h-screen" 
-    :data-theme="appStore.settings.theme"
-    @dragover="handleGlobalDragOver"
-  >
+  <div class="flex flex-col h-screen" :data-theme="appStore.settings.theme" @dragover="handleGlobalDragOver">
     <!-- Header -->
     <header class="navbar bg-base-300 text-neutral-content z-50">
       <div class="flex-1">
@@ -98,18 +112,22 @@ onMounted(async () => {
       <div class="flex-none flex items-center gap-4">
         <button class="btn btn-ghost btn-circle" @click="showSettings = true" title="Settings">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
         </button>
         <button class="btn btn-ghost btn-circle" @click="dashboardStore.openLayout" title="Open Layout">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z" />
           </svg>
         </button>
         <button class="btn btn-ghost btn-circle" @click="dashboardStore.saveLayoutAs" title="Save Layout">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
           </svg>
         </button>
         <div class="divider divider-horizontal m-0"></div>
@@ -117,7 +135,7 @@ onMounted(async () => {
         <button class="btn btn-xs btn-outline btn-info" @click="mqttStore.startSimulation()">Simulate Data</button>
         <div class="form-control">
           <label class="label cursor-pointer gap-2">
-            <span class="label-text text-neutral-content">Edit Mode</span> 
+            <span class="label-text text-neutral-content">Edit Mode</span>
             <input type="checkbox" class="toggle toggle-primary" :checked="isEditing" @change="toggleEditMode" />
           </label>
         </div>
@@ -130,23 +148,20 @@ onMounted(async () => {
     <!-- Main Content -->
     <main class="flex-1 overflow-hidden bg-base-100 flex">
       <!-- Widget Palette -->
-      <aside v-if="isEditing" class="w-64 bg-base-200 border-r border-base-300 flex flex-col z-40 transition-all duration-300">
+      <aside v-if="isEditing"
+        class="w-64 bg-base-200 border-r border-base-300 flex flex-col z-40 transition-all duration-300">
         <div class="p-4 border-b border-base-300">
           <h2 class="font-bold text-lg">Widgets</h2>
           <p class="text-xs text-base-content/70">Drag to dashboard</p>
         </div>
         <div class="p-4 space-y-3 overflow-y-auto flex-1">
-          <div 
-            v-for="type in widgetTypes" 
-            :key="type.id"
+          <div v-for="type in availableWidgets" :key="type.id"
             class="card bg-base-100 shadow-sm cursor-grab hover:shadow-md transition-shadow border border-base-300 active:cursor-grabbing"
-            draggable="true"
-            @dragstart="handleDragStart($event, type.id)"
-            @dragend="handleDragEnd"
-          >
+            draggable="true" @dragstart="handleDragStart($event, type.id)" @dragend="handleDragEnd">
             <div class="card-body p-4 flex flex-row items-center gap-3">
               <div class="p-2 bg-primary/10 rounded-lg text-primary">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                  stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="type.icon" />
                 </svg>
               </div>

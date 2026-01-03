@@ -1,30 +1,47 @@
 class DemoWidget extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-    this._config = {};
-    this._message = null;
-  }
+    constructor() {
+        super();
+        this.attachShadow({ mode: 'open' });
+        this._config = {};
+        this._message = null;
+    }
 
-  set config(val) {
-    this._config = val;
-    this.render();
-  }
+    set config(val) {
+        // Default values fallback
+        const defaults = {
+            headerText: 'Demo Widget',
+            fontSize: 16,
+            showBorder: true
+        };
 
-  set message(val) {
-    this._message = val;
-    this.render();
-  }
+        const settings = val && val.settings ? val.settings : {};
 
-  connectedCallback() {
-    this.render();
-  }
+        this._config = {
+            ...val,
+            settings: { ...defaults, ...settings }
+        };
+        this.render();
+    }
 
-  render() {
-    const topic = this._config.topic || 'No topic';
-    const payload = this._message ? this._message.payload : 'Waiting...';
-    
-    this.shadowRoot.innerHTML = `
+    set message(val) {
+        this._message = val;
+        this.render();
+    }
+
+    connectedCallback() {
+        this.render();
+    }
+
+    render() {
+        const topic = this._config.topic || 'No topic';
+        const payload = this._message ? this._message.payload : 'Waiting...';
+        const { headerText, fontSize, showBorder } = this._config.settings || {
+            headerText: 'Demo Widget',
+            fontSize: 16,
+            showBorder: true
+        };
+
+        this.shadowRoot.innerHTML = `
       <style>
         :host {
           display: block;
@@ -36,11 +53,14 @@ class DemoWidget extends HTMLElement {
           box-sizing: border-box;
           overflow: auto;
           border-radius: 4px;
+          border: ${showBorder ? '1px solid #ccc' : 'none'};
+          font-size: ${fontSize}px;
         }
         @media (prefers-color-scheme: dark) {
             :host {
                 background: #333;
                 color: #fff;
+                border-color: #555;
             }
         }
         h2 { margin: 0; font-size: 1.2em; }
@@ -52,24 +72,24 @@ class DemoWidget extends HTMLElement {
         }
       </style>
       <div>
-        <h2>Demo Widget</h2>
+        <h2>${headerText}</h2>
         <div class="meta">Topic: ${topic}</div>
         <div class="value">${payload}</div>
         <button id="btn">Send Hello</button>
       </div>
     `;
 
-    const btn = this.shadowRoot.getElementById('btn');
-    if (btn) {
-        btn.onclick = () => {
-          if (window.MqttViewerSDK && this._config.topic) {
-            window.MqttViewerSDK.publish(this._config.topic, 'Hello from Plugin!');
-          } else {
-              alert('SDK not ready or topic not set');
-          }
-        };
+        const btn = this.shadowRoot.getElementById('btn');
+        if (btn) {
+            btn.onclick = () => {
+                if (window.MqttViewerSDK && this._config.topic) {
+                    window.MqttViewerSDK.publish(this._config.topic, 'Hello from Plugin!');
+                } else {
+                    alert('SDK not ready or topic not set');
+                }
+            };
+        }
     }
-  }
 }
 
 customElements.define('demo-widget', DemoWidget);
