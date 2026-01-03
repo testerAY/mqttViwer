@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch, shallowRef } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import { useMqttStore } from '../../stores/useMqttStore';
 import { usePluginStore } from '../../stores/usePluginStore';
@@ -26,33 +26,77 @@ const pluginTagName = ref<string | null>(null);
 const loadError = ref<string | null>(null);
 const isLoading = ref(false);
 
-const message = computed(() => {
+const rawMessage = computed(() => {
   if (!props.widget.topic) return undefined;
   return mqttStore.dataMap.get(props.widget.topic);
 });
 
-// コンポーネント解決ロジック
-const widgetComponent = computed(() => {
-  // レジストリから取得
-  const comp = getWidgetComponent(props.widget.type);
-  if (comp) return comp;
+const message = ref<any>(undefined);
+const lastUpdate = ref(0);
+let throttleTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // まだロードされていない、または存在しない場合
-  return null;
+watch(rawMessage, (newMsg) => {
+  const interval = props.widget.updateInterval || 0;
+
+  if (interval <= 0) {
+    message.value = newMsg;
+    if (throttleTimer) {
+      clearTimeout(throttleTimer);
+      throttleTimer = null;
+    }
+    return;
+  }
+
+  const now = Date.now();
+  const timeSinceLast = now - lastUpdate.value;
+
+  if (timeSinceLast >= interval) {
+    message.value = newMsg;
+    lastUpdate.value = now;
+    if (throttleTimer) {
+      clearTimeout(throttleTimer);
+      throttleTimer = null;
+    }
+  } else {
+    // Schedule trailing update
+    if (throttleTimer) clearTimeout(throttleTimer);
+    throttleTimer = setTimeout(() => {
+      message.value = newMsg;
+      lastUpdate.value = Date.now();
+      throttleTimer = null;
+    }, interval - timeSinceLast);
+  }
+}, { immediate: true });
+
+const widgetComponent = shallowRef<any>(null);
+
+const canExportCsv = computed(() => {
+  const singleValueTypes = ['value-display', 'gauge', 'switch', 'slider'];
+  return !singleValueTypes.includes(props.widget.type);
 });
 
 watch(() => props.widget.type, async (newType) => {
+
+  const comp = getWidgetComponent(newType);
+
   // すでにレジストリにある場合は何もしない
-  if (getWidgetComponent(newType)) return;
+  if (comp) {
+    widgetComponent.value = comp;
+    return;
+  }
 
   // レジストリになければ、PluginStoreを使ってロードを試みる
   isLoading.value = true;
   loadError.value = null;
+  widgetComponent.value = null; // ロード中はクリア
 
   try {
     const success = await usePluginStore().loadPlugin(newType);
     if (!success) {
       loadError.value = `Plugin "${newType}" could not be loaded.`;
+    }
+    else {
+      widgetComponent.value = getWidgetComponent(newType);
     }
   } catch (e) {
     loadError.value = `Error loading plugin: ${e}`;
@@ -113,7 +157,7 @@ const exportCsv = async () => {
         </div>
         <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
           <li><a @click="emit('edit', widget.id)">Settings</a></li>
-          <li><a @click="exportCsv">Export CSV</a></li>
+          <li v-if="canExportCsv"><a @click="exportCsv">Export CSV</a></li>
           <li><a @click="emit('remove', widget.id)" class="text-error">Remove</a></li>
         </ul>
       </div>

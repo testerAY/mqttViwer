@@ -34,4 +34,7 @@ export function registerCoreWidgets() {
   registerWidget('gauge', defineAsyncComponent(() => import('../components/widgets/GaugeWidget.vue')));
   registerWidget('switch', defineAsyncComponent(() => import('../components/widgets/SwitchWidget.vue')));
   registerWidget('slider', defineAsyncComponent(() => import('../components/widgets/SliderWidget.vue')));
+  registerWidget('plotter', defineAsyncComponent(() => import('../components/widgets/PlotterWidget.vue')));
+  registerWidget('scatter', defineAsyncComponent(() => import('../components/widgets/ScatterWidget.vue')));
+  registerWidget('gantt', defineAsyncComponent(() => import('../components/widgets/GanttWidget.vue')));
 }

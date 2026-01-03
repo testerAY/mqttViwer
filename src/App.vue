@@ -62,6 +62,21 @@ const builtInWidgets = [
     name: 'Slider',
     icon: 'M4 6h16M4 12h16M4 18h16'
   },
+  {
+    id: 'plotter',
+    name: 'Plotter',
+    icon: 'M3 12h18M3 6h18M3 18h18M5 6v12M19 6v12'
+  },
+  {
+    id: 'gantt',
+    name: 'Gantt',
+    icon: 'M3 4h18v16H3z M5 8h4v2H5z M11 12h6v2H11z M6 16h5v2H6z'
+  },
+  {
+    id: 'scatter',
+    name: 'Scatter',
+    icon: 'M4 4h16v16H4z M8 14a1 1 0 100-2 1 1 0 000 2z M12 10a1 1 0 100-2 1 1 0 000 2z M16 8a1 1 0 100-2 1 1 0 000 2z'
+  },
 ];
 
 // 標準ウィジェットとプラグインを結合したリストを生成

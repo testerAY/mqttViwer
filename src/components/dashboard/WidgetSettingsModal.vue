@@ -61,7 +61,7 @@ watch(() => props.open, (isOpen) => {
       localConfig.value = widgetClone as EditableWidgetConfig;
 
       // Check if it's a plugin
-      const standardTypes = ['value-display', 'switch', 'chart', 'gauge', 'slider'];
+      const standardTypes = ['value-display', 'switch', 'chart', 'gauge', 'slider', 'gantt', 'scatter', 'plotter'];
       if (!standardTypes.includes(localConfig.value.type)) {
         currentPlugin.value = pluginStore.getPluginByTagName(localConfig.value.type);
 
@@ -137,6 +137,26 @@ const handleSave = () => {
     emit('close');
   }
 };
+
+const addSeries = () => {
+  if (!localConfig.value) return;
+  if (!localConfig.value.settings.series) {
+    localConfig.value.settings.series = [];
+  }
+  const series = localConfig.value.settings.series as any[];
+  const nextIndex = Number(series.length) + 1;
+  series.push({
+    topic: '',
+    key: '',
+    name: `Series ${nextIndex}`,
+    color: '#3b82f6'
+  });
+};
+
+const removeSeries = (index: number) => {
+  if (!localConfig.value?.settings.series) return;
+  localConfig.value.settings.series.splice(index, 1);
+};
 </script>
 
 <template>
@@ -158,6 +178,15 @@ const handleSave = () => {
           <div class="form-control w-full">
             <label class="label"><span class="label-text">Title</span></label>
             <input v-model="localConfig.title" type="text" class="input input-bordered" />
+          </div>
+
+          <div class="form-control w-full">
+            <label class="label"><span class="label-text">Update Frequency (ms)</span></label>
+            <input v-model.number="localConfig.updateInterval" type="number" class="input input-bordered"
+              placeholder="0 (Realtime)" min="0" step="100" />
+            <label class="label">
+              <span class="label-text-alt">0 = Realtime. Higher values reduce rendering load.</span>
+            </label>
           </div>
 
           <div class="form-control w-full" v-if="!currentPlugin || currentPlugin.capabilities?.requiresTopic">
@@ -301,6 +330,15 @@ const handleSave = () => {
             </template>
 
             <template v-if="localConfig.type === 'chart'">
+              <div class="divider">Chart Settings</div>
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">Chart Type</span></label>
+                <select v-model="localConfig.settings.chartType" class="select select-bordered">
+                  <option value="line">Line Chart</option>
+                  <option value="bar">Bar Chart</option>
+                </select>
+              </div>
+
               <div class="divider">Chart Axes</div>
               <div class="form-control w-full">
                 <label class="label"><span class="label-text">X-Axis Key (Timestamp)</span></label>
@@ -328,10 +366,64 @@ const handleSave = () => {
               value.</span>
           </div>
 
+          <template v-if="localConfig.type === 'chart'">
+            <div class="flex justify-between items-center">
+              <span class="label-text font-bold">Series Configuration</span>
+              <button class="btn btn-xs btn-primary" @click="addSeries">+ Add Series</button>
+            </div>
+
+            <div v-if="localConfig.settings.series && localConfig.settings.series.length > 0"
+              class="flex flex-col gap-2">
+              <div v-for="(series, idx) in localConfig.settings.series" :key="idx"
+                class="collapse collapse-arrow bg-base-200 border border-base-300">
+                <input type="checkbox" />
+                <div class="collapse-title font-medium flex items-center gap-2 p-2 min-h-0">
+                  <div class="w-3 h-3 rounded-full shrink-0" :style="{ background: series.color || '#3b82f6' }"></div>
+                  <span class="text-sm truncate flex-1">{{ series.name || 'Series ' + (idx + 1) }}</span>
+                </div>
+                <div class="collapse-content">
+                  <div class="form-control w-full">
+                    <label class="label py-1"><span class="label-text-alt">Name</span></label>
+                    <input v-model="series.name" type="text" class="input input-bordered input-sm" />
+                  </div>
+                  <div class="form-control w-full">
+                    <label class="label py-1"><span class="label-text-alt">Topic (Optional)</span></label>
+                    <input v-model="series.topic" type="text" class="input input-bordered input-sm font-mono"
+                      list="topic-list" placeholder="Inherit Global Topic" />
+                  </div>
+                  <div class="form-control w-full">
+                    <label class="label py-1"><span class="label-text-alt">Value Key</span></label>
+                    <input v-model="series.key" type="text" class="input input-bordered input-sm font-mono" />
+                  </div>
+                  <div class="form-control w-full">
+                    <label class="label py-1"><span class="label-text-alt">Color</span></label>
+                    <div class="flex gap-2">
+                      <input v-model="series.color" type="color" class="input input-bordered input-sm w-16 p-0" />
+                      <input v-model="series.color" type="text"
+                        class="input input-bordered input-sm flex-1 font-mono" />
+                    </div>
+                  </div>
+                  <div class="mt-2 text-right">
+                    <button class="btn btn-xs btn-error btn-outline"
+                      @click="removeSeries(idx as number)">Remove</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-center text-sm opacity-60 p-4 border border-dashed rounded-md">
+              No series defined. <br />Falls back to legacy "Value Key" below.
+            </div>
+
+            <div class="divider">Legacy / Single Value</div>
+          </template>
+
           <div class="form-control w-full">
             <label class="label"><span class="label-text">Value Key</span></label>
             <input v-model="localConfig.settings.valueKey" type="text" class="input input-bordered font-mono"
               placeholder="e.g. temperature" />
+            <label class="label" v-if="localConfig.type === 'chart'">
+              <span class="label-text-alt text-warning">Used if no series are defined above.</span>
+            </label>
           </div>
 
           <div class="divider">Preview</div>
