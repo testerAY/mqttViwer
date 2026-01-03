@@ -33,9 +33,9 @@ const handleSave = async () => {
   <dialog class="modal" :class="{ 'modal-open': open }">
     <div class="modal-box w-11/12 max-w-2xl">
       <h3 class="font-bold text-lg">Application Settings</h3>
-      
+
       <div v-if="localConfig" class="py-4 flex flex-col gap-4">
-        
+
         <!-- Theme Settings -->
         <div class="form-control w-full">
           <label class="label"><span class="label-text">Theme</span></label>
@@ -66,8 +66,9 @@ const handleSave = async () => {
           <!-- Host -->
           <div class="form-control w-full">
             <label class="label"><span class="label-text">Host</span></label>
-            <input v-model="localConfig.broker.host" type="text" class="input input-bordered" :disabled="localConfig.broker.mode === 'internal'" />
-             <label class="label" v-if="localConfig.broker.mode === 'internal'">
+            <input v-model="localConfig.broker.host" type="text" class="input input-bordered"
+              :disabled="localConfig.broker.mode === 'internal'" />
+            <label class="label" v-if="localConfig.broker.mode === 'internal'">
               <span class="label-text-alt">Internal broker always listens on 127.0.0.1</span>
             </label>
           </div>
@@ -76,6 +77,23 @@ const handleSave = async () => {
           <div class="form-control w-full">
             <label class="label"><span class="label-text">Port</span></label>
             <input v-model.number="localConfig.broker.port" type="number" class="input input-bordered" />
+          </div>
+        </div>
+
+        <!-- Credentials -->
+        <div class="flex gap-4" v-if="localConfig.broker.mode === 'external'">
+          <!-- Username -->
+          <div class="form-control w-full">
+            <label class="label"><span class="label-text">Username</span></label>
+            <input v-model="localConfig.broker.username" type="text" class="input input-bordered"
+              placeholder="Optional" />
+          </div>
+
+          <!-- Password -->
+          <div class="form-control w-full">
+            <label class="label"><span class="label-text">Password</span></label>
+            <input v-model="localConfig.broker.password" type="password" class="input input-bordered"
+              placeholder="Optional" />
           </div>
         </div>
 
@@ -91,16 +109,16 @@ const handleSave = async () => {
         <div class="divider">Data Retention</div>
 
         <!-- Retention Policy -->
-         <div class="form-control">
+        <div class="form-control">
           <label class="label cursor-pointer justify-start gap-4">
-            <span class="label-text">Enable Auto-deletion</span> 
+            <span class="label-text">Enable Auto-deletion</span>
             <input type="checkbox" v-model="localConfig.retention.enabled" class="checkbox" />
           </label>
         </div>
 
         <div class="form-control w-full" v-if="localConfig.retention.enabled">
-            <label class="label"><span class="label-text">Keep Data For (Days)</span></label>
-            <input v-model.number="localConfig.retention.days" type="number" class="input input-bordered" min="1" />
+          <label class="label"><span class="label-text">Keep Data For (Days)</span></label>
+          <input v-model.number="localConfig.retention.days" type="number" class="input input-bordered" min="1" />
         </div>
 
       </div>
@@ -111,7 +129,7 @@ const handleSave = async () => {
       </div>
     </div>
     <form method="dialog" class="modal-backdrop">
-       <button @click="$emit('close')">close</button>
+      <button @click="$emit('close')">close</button>
     </form>
   </dialog>
 </template>

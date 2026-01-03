@@ -6,6 +6,8 @@ export interface BrokerConfig {
   mode: 'internal' | 'external';
   host: string;
   port: number;
+  username?: string;
+  password?: string;
   subscription_topic: string;
 }
 
@@ -24,7 +26,7 @@ export interface AppConfig {
 export const useAppStore = defineStore('app', () => {
   const settings = ref<AppConfig>({
     last_layout_path: null,
-    broker: { mode: 'internal', host: '127.0.0.1', port: 9883, subscription_topic: '#' },
+    broker: { mode: 'internal', host: '127.0.0.1', port: 9883, subscription_topic: '#', username: undefined, password: undefined },
     theme: 'dark',
     retention: { enabled: true, days: 7 }
   });

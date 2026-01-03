@@ -9,6 +9,8 @@ pub struct BrokerConfig {
     pub mode: String, // "internal" or "external"
     pub host: String,
     pub port: u16,
+    pub username: Option<String>,
+    pub password: Option<String>,
     #[serde(default = "default_subscription_topic")]
     pub subscription_topic: String,
 }
@@ -23,6 +25,8 @@ impl Default for BrokerConfig {
             mode: "internal".to_string(),
             host: "127.0.0.1".to_string(),
             port: 9883,
+            username: None,
+            password: None,
             subscription_topic: default_subscription_topic(),
         }
     }
@@ -67,7 +71,7 @@ pub fn load_config(app: &AppHandle) -> Result<AppConfig, String> {
     if !config_path.exists() {
         return Ok(AppConfig::default());
     }
-    
+
     let json = fs::read_to_string(config_path).map_err(|e| e.to_string())?;
     let config: AppConfig = serde_json::from_str(&json).unwrap_or_default();
     Ok(config)
