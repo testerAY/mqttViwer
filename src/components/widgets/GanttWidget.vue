@@ -54,10 +54,14 @@ const processMessage = (msg: MqttMessage, topic: string) => {
                 // Start new
                 seriesStates.value[idx] = { value: val, startTime: timestamp };
 
-                // Prune history (older than 5 mins?)
-                const cutoff = Date.now() - 300000;
-                if (history.value.length > 0 && history.value[0].end < cutoff) {
-                    history.value = history.value.filter(h => h.end >= cutoff);
+                // Prune history
+                const window = (props.config.settings?.timeWindow || 60) * 1000;
+                const cutoff = Date.now() - window - 10000;
+                const startOfToday = new Date().setHours(0, 0, 0, 0);
+                const effectiveCutoff = Math.max(cutoff, startOfToday);
+
+                if (history.value.length > 0 && history.value[0].end < effectiveCutoff) {
+                    history.value = history.value.filter(h => h.end >= effectiveCutoff);
                 }
 
             } else if (!currentState) {
@@ -126,11 +130,29 @@ const renderItem = (params: any, api: any) => {
 
 const option = computed(() => {
     const data = [...history.value];
+    let minTime, maxTime;
+    const nowTs = now.value;
+
+    if (props.config.settings?.timeMode === 'absolute' && props.config.settings?.startTime && props.config.settings?.endTime) {
+        const baseDate = new Date();
+        const [startH, startM, startS] = props.config.settings.startTime.split(':').map(Number);
+        const [endH, endM, endS] = props.config.settings.endTime.split(':').map(Number);
+        minTime = new Date(baseDate).setHours(startH, startM, startS || 0);
+        maxTime = new Date(baseDate).setHours(endH, endM, endS || 0);
+    } else {
+        const window = (props.config.settings?.timeWindow || 60) * 1000;
+        maxTime = nowTs;
+        minTime = maxTime - window;
+    }
+
+    // 当日の開始時刻
+    const startOfToday = new Date().setHours(0, 0, 0, 0);
+
     Object.entries(seriesStates.value).forEach(([k, v]) => {
         const idx = Number(k);
         data.push({
             index: idx,
-            start: v.startTime,
+            start: Math.max(v.startTime, startOfToday), // 当日以前の開始は当日0時にクリップ
             end: now.value,
             value: v.value
         });
@@ -142,7 +164,10 @@ const option = computed(() => {
         name: d.value
     }));
 
+    const interval = props.config.settings?.tickInterval ? props.config.settings.tickInterval * 1000 : 'auto';
+
     return {
+        animation: false,
         tooltip: {
             trigger: 'item',
             formatter: (p: any) => {
@@ -152,8 +177,9 @@ const option = computed(() => {
         },
         xAxis: {
             type: 'time',
-            min: now.value - 60000,
-            max: now.value,
+            min: minTime,
+            max: maxTime,
+            interval: interval,
             splitLine: { show: true }
         },
         yAxis: {
@@ -164,7 +190,8 @@ const option = computed(() => {
             type: 'custom',
             renderItem: renderItem,
             encode: { x: [1, 2], y: 0 },
-            data: echartsData
+            data: echartsData,
+            clip: true
         }]
     };
 });

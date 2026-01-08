@@ -19,7 +19,7 @@ const props = defineProps<{
 
 const mqttStore = useMqttStore();
 const windowSeconds = 60; // TODO: Make configurable
-const windowMs = windowSeconds * 1000;
+const timeWindow = computed(() => (props.config.settings?.timeWindow || 60) * 1000);
 
 interface PlotPoint {
     value: number;
@@ -52,15 +52,19 @@ const processMessage = (msg: MqttMessage, topic: string) => {
         if ((s.topic || props.config.topic) === topic) {
             const pt = getPoint(msg, s.key);
             if (pt) {
+                // 当日チェック
+                const startOfToday = new Date().setHours(0, 0, 0, 0);
+                if (pt.timestamp < startOfToday) return;
+
                 if (!seriesHistory.value[idx]) seriesHistory.value[idx] = [];
                 seriesHistory.value[idx].push(pt);
 
                 // Prune data outside window + buffer
-                const cutoff = Date.now() - windowMs - 10000;
-                if (seriesHistory.value[idx].length > 0 && seriesHistory.value[idx][0].timestamp < cutoff) {
-                    // Optimize: find index to slice? Or just filter.
-                    // Filter is O(N). Since N is small for 60s window (maybe 60-600 points), it's fine.
-                    seriesHistory.value[idx] = seriesHistory.value[idx].filter(p => p.timestamp >= cutoff);
+                const cutoff = Date.now() - timeWindow.value - 10000;
+                const effectiveCutoff = Math.max(cutoff, startOfToday);
+
+                if (seriesHistory.value[idx].length > 0 && seriesHistory.value[idx][0].timestamp < effectiveCutoff) {
+                    seriesHistory.value[idx] = seriesHistory.value[idx].filter(p => p.timestamp >= effectiveCutoff);
                 }
             }
         }
@@ -121,8 +125,24 @@ onUnmounted(() => {
 });
 
 const option = computed(() => {
-    const maxTime = now.value;
-    const minTime = maxTime - windowMs;
+    const nowTs = now.value;
+    let minTime, maxTime;
+
+    if (props.config.settings?.timeMode === 'absolute' && props.config.settings?.startTime && props.config.settings?.endTime) {
+        // 今日の日付に設定された時刻を適用する簡易実装
+        const baseDate = new Date();
+        const [startH, startM, startS] = props.config.settings.startTime.split(':').map(Number);
+        const [endH, endM, endS] = props.config.settings.endTime.split(':').map(Number);
+
+        minTime = new Date(baseDate).setHours(startH, startM, startS || 0);
+        maxTime = new Date(baseDate).setHours(endH, endM, endS || 0);
+    } else {
+        // Relative Mode
+        maxTime = nowTs;
+        minTime = maxTime - timeWindow.value;
+    }
+
+    const interval = props.config.settings?.tickInterval ? props.config.settings.tickInterval * 1000 : 'auto';
 
     const series = seriesDefs.value.map((s, idx) => ({
         name: s.name || `Series ${idx + 1}`,
@@ -135,18 +155,14 @@ const option = computed(() => {
     }));
 
     return {
+        animation: false,
         tooltip: { trigger: 'axis' },
         grid: { left: 40, right: 20, top: 10, bottom: 20, containLabel: true },
         xAxis: {
             type: 'time',
             min: minTime,
             max: maxTime,
-            axisLabel: {
-                formatter: (val: number) => {
-                    const diff = Math.round((val - maxTime) / 1000);
-                    return diff + 's';
-                }
-            },
+            interval: interval,
             splitLine: { show: true }
         },
         yAxis: { type: 'value', scale: true, splitLine: { show: true } },

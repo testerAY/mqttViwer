@@ -200,6 +200,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
         break;
       case 'chart':
         title = 'Chart';
+        settings = { chartType: 'line', timeMode: 'relative', timeWindow: 60 };
         width = 8;
         height = 6;
         break;
@@ -211,6 +212,22 @@ export const useDashboardStore = defineStore('dashboard', () => {
         title = 'Switch';
         settings = { onPayload: 'ON', offPayload: 'OFF' };
         height = 3;
+        break;
+      case 'slider':
+        title = 'Slider';
+        settings = { min: 0, max: 100, step: 1 };
+        break;
+      case 'plotter':
+        title = 'Plotter';
+        settings = { timeMode: 'relative', timeWindow: 60 };
+        break;
+      case 'gantt':
+        title = 'Gantt';
+        settings = { timeMode: 'relative', timeWindow: 60 };
+        break;
+      case 'scatter':
+        title = 'Scatter';
+        settings = {};
         break;
     }
 

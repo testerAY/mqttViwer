@@ -39,6 +39,18 @@ const localLayout = ref<EditableLayout | null>(null);
 const availableTopics = ref<string[]>([]);
 const previewValue = ref<any>(null);
 
+const windowHours = ref(0);
+const windowMinutes = ref(0);
+const windowSeconds = ref(0);
+
+const updateWindowSize = () => {
+  if (!localConfig.value) return;
+  const h = windowHours.value || 0;
+  const m = windowMinutes.value || 0;
+  const s = windowSeconds.value || 0;
+  localConfig.value.settings.timeWindow = Math.max(0, h * 3600 + m * 60 + s);
+};
+
 const fetchTopics = async () => {
   try {
     const topics = await invoke<string[]>('get_distinct_topics');
@@ -59,6 +71,12 @@ watch(() => props.open, (isOpen) => {
         widgetClone.settings = {};
       }
       localConfig.value = widgetClone as EditableWidgetConfig;
+
+      // Initialize Window Size breakdown
+      const totalSeconds = localConfig.value.settings.timeWindow || 60;
+      windowHours.value = Math.floor(totalSeconds / 3600);
+      windowMinutes.value = Math.floor((totalSeconds % 3600) / 60);
+      windowSeconds.value = totalSeconds % 60;
 
       // Check if it's a plugin
       const standardTypes = ['value-display', 'switch', 'chart', 'gauge', 'slider', 'gantt', 'scatter', 'plotter'];
@@ -282,6 +300,57 @@ const removeSeries = (index: number) => {
               </label>
             </div>
 
+            <template v-if="['chart', 'plotter', 'gantt'].includes(localConfig.type)">
+              <div class="divider">Time Axis Settings</div>
+
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">Time Mode</span></label>
+                <select v-model="localConfig.settings.timeMode" class="select select-bordered">
+                  <option value="relative">Relative (Latest X seconds)</option>
+                  <option value="absolute">Absolute Range</option>
+                </select>
+              </div>
+
+              <div v-if="localConfig.settings.timeMode === 'absolute'" class="flex gap-4">
+                <div class="form-control w-full">
+                  <label class="label"><span class="label-text">Start Time</span></label>
+                  <input v-model="localConfig.settings.startTime" type="time" step="1" class="input input-bordered" />
+                </div>
+                <div class="form-control w-full">
+                  <label class="label"><span class="label-text">End Time</span></label>
+                  <input v-model="localConfig.settings.endTime" type="time" step="1" class="input input-bordered" />
+                </div>
+              </div>
+
+              <div v-else class="form-control w-full">
+                <label class="label"><span class="label-text">Window Size</span></label>
+                <div class="flex gap-2">
+                  <div class="flex-1">
+                    <input v-model.number="windowHours" @input="updateWindowSize" type="number"
+                      class="input input-bordered w-full" min="0" placeholder="0" />
+                    <label class="label"><span class="label-text-alt">Hours</span></label>
+                  </div>
+                  <div class="flex-1">
+                    <input v-model.number="windowMinutes" @input="updateWindowSize" type="number"
+                      class="input input-bordered w-full" min="0" max="59" placeholder="0" />
+                    <label class="label"><span class="label-text-alt">Minutes</span></label>
+                  </div>
+                  <div class="flex-1">
+                    <input v-model.number="windowSeconds" @input="updateWindowSize" type="number"
+                      class="input input-bordered w-full" min="0" max="59" placeholder="0" />
+                    <label class="label"><span class="label-text-alt">Seconds</span></label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">Tick Interval (Seconds)</span></label>
+                <input v-model.number="localConfig.settings.tickInterval" type="number" class="input input-bordered"
+                  placeholder="Auto" />
+                <label class="label"><span class="label-text-alt">Leave empty for auto scaling</span></label>
+              </div>
+            </template>
+
             <!-- Type Specific -->
             <template v-if="localConfig.type === 'gauge'">
               <div class="divider">Gauge Settings</div>
@@ -341,11 +410,6 @@ const removeSeries = (index: number) => {
 
               <div class="divider">Chart Axes</div>
               <div class="form-control w-full">
-                <label class="label"><span class="label-text">X-Axis Key (Timestamp)</span></label>
-                <input v-model="localConfig.settings.xKey" type="text" class="input input-bordered font-mono"
-                  placeholder="e.g. timestamp" />
-              </div>
-              <div class="form-control w-full">
                 <label class="label"><span class="label-text">Y-Axis Key (Value)</span></label>
                 <input v-model="localConfig.settings.yKey" type="text" class="input input-bordered font-mono"
                   placeholder="e.g. value" />
@@ -366,7 +430,7 @@ const removeSeries = (index: number) => {
               value.</span>
           </div>
 
-          <template v-if="localConfig.type === 'chart'">
+          <template v-if="['chart', 'plotter', 'gantt'].includes(localConfig.type)">
             <div class="flex justify-between items-center">
               <span class="label-text font-bold">Series Configuration</span>
               <button class="btn btn-xs btn-primary" @click="addSeries">+ Add Series</button>
@@ -379,7 +443,7 @@ const removeSeries = (index: number) => {
                 <input type="checkbox" />
                 <div class="collapse-title font-medium flex items-center gap-2 p-2 min-h-0">
                   <div class="w-3 h-3 rounded-full shrink-0" :style="{ background: series.color || '#3b82f6' }"></div>
-                  <span class="text-sm truncate flex-1">{{ series.name || 'Series ' + (idx + 1) }}</span>
+                  <span class="text-sm truncate flex-1">{{ series.name || 'Series ' + (Number(idx) + 1) }}</span>
                 </div>
                 <div class="collapse-content">
                   <div class="form-control w-full">
@@ -425,6 +489,27 @@ const removeSeries = (index: number) => {
               <span class="label-text-alt text-warning">Used if no series are defined above.</span>
             </label>
           </div>
+
+          <template v-if="localConfig.type === 'scatter'">
+            <div class="divider">Scatter Configuration</div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">X Key</span></label>
+                <input v-model="localConfig.settings.xKey" type="text" class="input input-bordered font-mono"
+                  placeholder="value.x" />
+              </div>
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">Y Key</span></label>
+                <input v-model="localConfig.settings.yKey" type="text" class="input input-bordered font-mono"
+                  placeholder="value.y" />
+              </div>
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">Label/Z Key</span></label>
+                <input v-model="localConfig.settings.zKey" type="text" class="input input-bordered font-mono"
+                  placeholder="value.z" />
+              </div>
+            </div>
+          </template>
 
           <div class="divider">Preview</div>
 

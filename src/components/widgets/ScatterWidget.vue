@@ -51,8 +51,19 @@ const processMessage = (msg: MqttMessage, topic: string) => {
 
     // Only push if we have both values and at least one updated
     if (updated && currentX.value !== null && currentY.value !== null) {
-        history.value.push([currentX.value, currentY.value]);
-        if (history.value.length > maxPoints) history.value.shift();
+        const timestamp = msg.timestamp * 1000;
+        const startOfToday = new Date().setHours(0, 0, 0, 0);
+
+        if (timestamp >= startOfToday) {
+            history.value.push([currentX.value, currentY.value, timestamp]);
+
+            // Prune old data (older than today)
+            if (history.value.length > 0 && history.value[0][2] < startOfToday) {
+                history.value = history.value.filter(p => p[2] >= startOfToday);
+            }
+
+            if (history.value.length > maxPoints) history.value.shift();
+        }
     }
 };
 

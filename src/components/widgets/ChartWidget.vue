@@ -31,12 +31,13 @@ const props = defineProps<{
 }>();
 
 const mqttStore = useMqttStore();
-const maxPoints = 50;
 
 interface ChartPoint {
   value: number;
   timestamp: number; // ms
 }
+
+const timeWindow = computed(() => (props.config.settings?.timeWindow || 60) * 1000);
 
 // Store history per series index
 const seriesHistory = ref<Record<number, ChartPoint[]>>({});
@@ -55,7 +56,7 @@ const seriesDefs = computed<DataSeries[]>(() => {
   }];
 });
 
-const getPointFromMessage = (msg: MqttMessage, valueKey?: string, xKey?: string): ChartPoint | null => {
+const getPointFromMessage = (msg: MqttMessage, valueKey?: string): ChartPoint | null => {
   // Extract Y Value
   const rawVal = extractValue(msg.payload, valueKey || props.config.settings?.yKey);
   const val = parseFloat(rawVal);
@@ -63,28 +64,6 @@ const getPointFromMessage = (msg: MqttMessage, valueKey?: string, xKey?: string)
 
   // Extract X Value (Time)
   let timestamp = msg.timestamp * 1000; // Default to message timestamp (ms)
-
-  if (xKey) {
-    const rawTime = extractValue(msg.payload, xKey);
-    if (rawTime !== undefined) {
-      const dateObj = new Date(rawTime);
-      if (!isNaN(dateObj.getTime())) {
-        // It's a valid date/time
-        // Check if it's a numeric timestamp (seconds vs ms)
-        const numVal = Number(rawTime);
-        if (!isNaN(numVal)) {
-          // Heuristic: if < 10 billion, assume seconds, else ms
-          if (numVal < 10000000000) {
-            timestamp = numVal * 1000;
-          } else {
-            timestamp = numVal;
-          }
-        } else {
-          timestamp = dateObj.getTime();
-        }
-      }
-    }
-  }
 
   return {
     value: val,
@@ -98,14 +77,30 @@ const processMessage = (msg: MqttMessage, topic: string) => {
     const targetTopic = s.topic || props.config.topic;
 
     if (targetTopic === topic) {
-      const pt = getPointFromMessage(msg, s.key, props.config.settings?.xKey);
+      const pt = getPointFromMessage(msg, s.key);
       if (pt) {
+        // 当日チェック (00:00:00以降のみ)
+        const startOfToday = new Date().setHours(0, 0, 0, 0);
+        if (pt.timestamp < startOfToday) return;
+
         if (!seriesHistory.value[idx]) seriesHistory.value[idx] = [];
         const arr = seriesHistory.value[idx];
-        arr.push(pt);
-        // Keep buffer size limited
-        if (arr.length > maxPoints) {
-          seriesHistory.value[idx] = arr.slice(-maxPoints);
+        const lastPt = arr[arr.length - 1];
+
+        // 末尾のデータと同じタイムスタンプなら値を更新（上書き）
+        if (lastPt && lastPt.timestamp === pt.timestamp) {
+          lastPt.value = pt.value;
+        } else {
+          // 新しい時刻なら追加
+          arr.push(pt);
+        }
+
+        // Prune data
+        const cutoff = Date.now() - timeWindow.value - 10000; // Extra buffer
+        const effectiveCutoff = Math.max(cutoff, startOfToday);
+
+        if (arr.length > 0 && arr[0].timestamp < effectiveCutoff) {
+          seriesHistory.value[idx] = arr.filter(p => p.timestamp >= effectiveCutoff);
         }
       }
     }
@@ -142,8 +137,20 @@ watch(() => extraTopics.value.map(t => mqttStore.lastMessages[t]), (newMsgs, old
   });
 });
 
+import { onUnmounted } from 'vue';
+
+// Animation Loop
+const now = ref(Date.now());
+let animFrame: number;
+const updateNow = () => {
+  now.value = Date.now();
+  animFrame = requestAnimationFrame(updateNow);
+};
+
 // Load Initial History
 onMounted(async () => {
+  updateNow();
+
   const topicsToFetch = new Set<string>();
   if (props.config.topic) topicsToFetch.add(props.config.topic);
   extraTopics.value.forEach(t => topicsToFetch.add(t));
@@ -151,7 +158,7 @@ onMounted(async () => {
   for (const topic of topicsToFetch) {
     if (!topic) continue;
     try {
-      const msgs = await mqttStore.getHistory(topic, maxPoints);
+      const msgs = await mqttStore.getHistory(topic, 100); // Fetch enough
       // History comes Newest First (DESC). Reverse to Chronological.
       [...msgs].reverse().forEach(msg => processMessage(msg, topic));
     } catch (e) {
@@ -160,13 +167,31 @@ onMounted(async () => {
   }
 });
 
+onUnmounted(() => {
+  cancelAnimationFrame(animFrame);
+});
+
 // Chart Option
 const option = computed(() => {
   const chartType = props.config.settings?.chartType || 'line';
+  const interval = props.config.settings?.tickInterval ? props.config.settings.tickInterval * 1000 : undefined;
+
+  let minTime, maxTime;
+  if (props.config.settings?.timeMode === 'absolute' && props.config.settings?.startTime && props.config.settings?.endTime) {
+    const baseDate = new Date();
+    const [startH, startM, startS] = props.config.settings.startTime.split(':').map(Number);
+    const [endH, endM, endS] = props.config.settings.endTime.split(':').map(Number);
+    minTime = new Date(baseDate).setHours(startH, startM, startS || 0);
+    maxTime = new Date(baseDate).setHours(endH, endM, endS || 0);
+  } else {
+    maxTime = now.value;
+    minTime = maxTime - timeWindow.value;
+  }
 
   const seriesOptions = seriesDefs.value.map((s, idx) => {
     const data = seriesHistory.value[idx] || [];
     return {
+      animation: false,
       name: s.name || s.key || `Series ${idx + 1}`,
       type: chartType,
       // Map to [x, y] format for 'time' axis
@@ -180,6 +205,7 @@ const option = computed(() => {
   });
 
   return {
+    animation: false,
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'cross' }
@@ -198,7 +224,11 @@ const option = computed(() => {
     xAxis: {
       type: 'time',
       boundaryGap: chartType === 'bar', // Bars need gap
-      splitLine: { show: false }
+      splitLine: { show: false },
+      minInterval: interval,
+      maxInterval: interval,
+      min: minTime,
+      max: maxTime,
     },
     yAxis: {
       type: 'value',
