@@ -8,6 +8,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { getWidgetComponent } from '../../registries/widgetRegistry';
+import MultiSliderKeysModal from './MultiSliderKeysModal.vue';
+import MultiSwitchKeysModal from './MultiSwitchKeysModal.vue';
 
 const props = defineProps<{
   widget: WidgetConfig;
@@ -27,6 +29,10 @@ const dashboardStore = useDashboardStore();
 const pluginTagName = ref<string | null>(null);
 const loadError = ref<string | null>(null);
 const isLoading = ref(false);
+
+const MULTI_KEY_WIDGET_TYPES = ['multi-slider', 'multi-switch'];
+const isMultiKeyWidget = computed(() => MULTI_KEY_WIDGET_TYPES.includes(props.widget.type));
+const showKeysModal = ref(false);
 
 const resolvedTopic = computed(() => {
   if (props.widget.mappingId) {
@@ -183,6 +189,7 @@ const exportCsv = async () => {
         </div>
         <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
           <li><a @click="emit('edit', widget.id)">Settings</a></li>
+          <li v-if="isMultiKeyWidget"><a @click="showKeysModal = true">Configure Keys</a></li>
           <li v-if="canExportCsv"><a @click="exportCsv">Export CSV</a></li>
           <li v-if="isChartWidget"><a @click="clearPlot">Clear Plot</a></li>
           <li><a @click="emit('remove', widget.id)" class="text-error">Remove</a></li>
@@ -200,6 +207,19 @@ const exportCsv = async () => {
       </div>
     </div>
   </div>
+
+  <MultiSliderKeysModal
+    v-if="widget.type === 'multi-slider'"
+    :open="showKeysModal"
+    :widgetId="widget.id"
+    @close="showKeysModal = false"
+  />
+  <MultiSwitchKeysModal
+    v-if="widget.type === 'multi-switch'"
+    :open="showKeysModal"
+    :widgetId="widget.id"
+    @close="showKeysModal = false"
+  />
 </template>
 
 <style scoped>

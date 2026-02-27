@@ -81,6 +81,16 @@ const builtInWidgets = [
     name: 'Scatter',
     icon: 'M4 4h16v16H4z M8 14a1 1 0 100-2 1 1 0 000 2z M12 10a1 1 0 100-2 1 1 0 000 2z M16 8a1 1 0 100-2 1 1 0 000 2z'
   },
+  {
+    id: 'multi-slider',
+    name: 'Multi Slider',
+    icon: 'M4 6h16M4 10h16M4 14h8M16 14h4M4 18h8M16 18h4'
+  },
+  {
+    id: 'multi-switch',
+    name: 'Multi Switch',
+    icon: 'M5 8h2a2 2 0 012 2v0a2 2 0 01-2 2H5a2 2 0 01-2-2v0a2 2 0 012-2z M17 8h2a2 2 0 012 2v0a2 2 0 01-2 2h-2a2 2 0 01-2-2v0a2 2 0 012-2z M5 14h2a2 2 0 012 2v0a2 2 0 01-2 2H5a2 2 0 01-2-2v0a2 2 0 012-2z'
+  },
 ];
 
 // 標準ウィジェットとプラグインを結合したリストを生成

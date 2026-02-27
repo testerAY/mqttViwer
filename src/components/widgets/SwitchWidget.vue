@@ -17,8 +17,8 @@ const isPublishing = ref(false);
 
 const { topic } = useWidgetData(toRef(props, 'config'));
 
-const onPayload = computed(() => props.config.settings?.onPayload ?? 'ON');
-const offPayload = computed(() => props.config.settings?.offPayload ?? 'OFF');
+const onPayload = computed(() => props.config.settings?.onPayload ?? '1');
+const offPayload = computed(() => props.config.settings?.offPayload ?? '0');
 const qos = computed(() => props.config.settings?.qos ?? 0);
 const retain = computed(() => props.config.settings?.retain ?? false);
 

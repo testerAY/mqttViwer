@@ -1,4 +1,18 @@
-export type WidgetType = 'value-display' | 'switch' | 'chart' | 'gauge' | 'slider' | string;
+export type WidgetType = 'value-display' | 'switch' | 'chart' | 'gauge' | 'slider' | 'multi-slider' | 'multi-switch' | string;
+
+export interface MultiSliderItem {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  defaultValue: number;
+}
+
+export interface MultiSwitchItem {
+  key: string;
+  label: string;
+}
 
 export interface DataSeries {
   topic: string;
