@@ -84,6 +84,8 @@ pub fn run() {
             commands::save_app_settings,
             commands::export_widget_data_as_csv,
             commands::get_distinct_topics,
+            commands::get_message_counts,
+            commands::delete_messages,
             plugins::get_plugin_list,
             plugins::load_plugin_file
         ])

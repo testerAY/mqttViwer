@@ -17,6 +17,7 @@ use([CanvasRenderer, CustomChart, GridComponent, TooltipComponent, LegendCompone
 const props = defineProps<{
     config: WidgetConfig;
     message: MqttMessage | undefined;
+    clearToken?: number;
 }>();
 
 const mqttStore = useMqttStore();
@@ -38,6 +39,13 @@ const seriesDefs = computed<DataSeries[]>(() => {
 });
 
 const seriesStates = ref<Record<number, { value: string, startTime: number }>>({});
+
+watch(() => props.clearToken, (token, prev) => {
+    if (token !== undefined && token !== prev) {
+        history.value = [];
+        seriesStates.value = {};
+    }
+});
 
 const resolveSeriesData = (s: DataSeries) => {
     let topic = s.topic;

@@ -93,6 +93,11 @@ const canExportCsv = computed(() => {
   return !singleValueTypes.includes(props.widget.type);
 });
 
+const CHART_WIDGET_TYPES = ['chart', 'plotter', 'gantt', 'scatter'];
+const isChartWidget = computed(() => CHART_WIDGET_TYPES.includes(props.widget.type));
+const clearToken = ref(0);
+const clearPlot = () => { clearToken.value++; };
+
 watch(() => props.widget.type, async (newType) => {
 
   const comp = getWidgetComponent(newType);
@@ -179,6 +184,7 @@ const exportCsv = async () => {
         <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
           <li><a @click="emit('edit', widget.id)">Settings</a></li>
           <li v-if="canExportCsv"><a @click="exportCsv">Export CSV</a></li>
+          <li v-if="isChartWidget"><a @click="clearPlot">Clear Plot</a></li>
           <li><a @click="emit('remove', widget.id)" class="text-error">Remove</a></li>
         </ul>
       </div>
@@ -186,7 +192,7 @@ const exportCsv = async () => {
 
     <div class="flex-1 overflow-hidden relative">
       <component v-if="widgetComponent" :is="widgetComponent" :config="widget" :message="message"
-        :tagName="pluginTagName" />
+        :tagName="pluginTagName" :clearToken="clearToken" />
       <div v-else class="flex items-center justify-center h-full opacity-50 flex-col p-4 text-center">
         <div v-if="isLoading">Loading plugin...</div>
         <div v-else-if="loadError" class="text-error text-xs">{{ loadError }}</div>

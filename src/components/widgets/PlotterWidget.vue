@@ -17,6 +17,7 @@ use([CanvasRenderer, LineChart, GridComponent, TooltipComponent]);
 const props = defineProps<{
     config: WidgetConfig;
     message: MqttMessage | undefined;
+    clearToken?: number;
 }>();
 
 const mqttStore = useMqttStore();
@@ -30,6 +31,10 @@ interface PlotPoint {
     timestamp: number;
 }
 const seriesHistory = ref<Record<number, PlotPoint[]>>({});
+
+watch(() => props.clearToken, (token, prev) => {
+    if (token !== undefined && token !== prev) seriesHistory.value = {};
+});
 
 // Normalized Series
 const seriesDefs = computed<DataSeries[]>(() => {

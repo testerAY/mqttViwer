@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import { useDashboardStore } from '../../stores/useDashboardStore';
 import { useMqttStore } from '../../stores/useMqttStore';
@@ -154,6 +154,14 @@ const handleSave = () => {
   }
 };
 
+const INPUT_WIDGET_TYPES = ['slider', 'switch'];
+
+const filteredMappings = computed(() => {
+  if (!localConfig.value) return [];
+  const isInput = INPUT_WIDGET_TYPES.includes(localConfig.value.type);
+  return dashboardStore.dataMappings.filter(m => isInput ? m.type === 'pub' : m.type === 'sub');
+});
+
 const addSeries = () => {
   if (!localConfig.value) return;
   if (!localConfig.value.settings.series) {
@@ -202,20 +210,6 @@ const removeSeries = (index: number) => {
               placeholder="0 (Realtime)" min="0" step="100" />
             <label class="label">
               <span class="label-text-alt">0 = Realtime. Higher values reduce rendering load.</span>
-            </label>
-          </div>
-
-          <!-- Mapping Selector -->
-          <div class="form-control w-full" v-if="!currentPlugin || currentPlugin.capabilities?.requiresTopic">
-            <label class="label"><span class="label-text">Data Source (Mapping)</span></label>
-            <select v-model="localConfig.mappingId" class="select select-bordered">
-              <option :value="undefined">-- Select Mapping --</option>
-              <option v-for="m in dashboardStore.dataMappings" :key="m.id" :value="m.id">
-                {{ m.name }} ({{ m.topic }})
-              </option>
-            </select>
-            <label class="label" v-if="!localConfig.mappingId && localConfig.topic">
-              <span class="label-text-alt text-warning">Using legacy topic: {{ localConfig.topic }}</span>
             </label>
           </div>
 
@@ -433,6 +427,29 @@ const removeSeries = (index: number) => {
             <span>Map data sources using central definitions.</span>
           </div>
 
+          <!-- Single Mapping Selector (value-display, gauge, scatter, slider, switch) -->
+          <template v-if="!['chart', 'plotter', 'gantt'].includes(localConfig.type)">
+            <div class="form-control w-full">
+              <label class="label">
+                <span class="label-text">Data Mapping</span>
+                <span class="label-text-alt badge badge-outline badge-sm">
+                  {{ ['slider', 'switch'].includes(localConfig.type) ? 'Publish' : 'Subscribe' }}
+                </span>
+              </label>
+              <select v-model="localConfig.mappingId" class="select select-bordered">
+                <option :value="undefined">-- Select Mapping --</option>
+                <option v-for="m in filteredMappings" :key="m.id" :value="m.id">
+                  {{ m.name }} ({{ m.topic }})
+                </option>
+              </select>
+              <label class="label" v-if="filteredMappings.length === 0">
+                <span class="label-text-alt text-warning">
+                  No {{ ['slider', 'switch'].includes(localConfig.type) ? 'Publish' : 'Subscribe' }} mappings defined.
+                </span>
+              </label>
+            </div>
+          </template>
+
           <template v-if="['chart', 'plotter', 'gantt'].includes(localConfig.type)">
             <div class="flex justify-between items-center">
               <span class="label-text font-bold">Series Configuration</span>
@@ -457,7 +474,7 @@ const removeSeries = (index: number) => {
                     <label class="label py-1"><span class="label-text-alt">Data Mapping</span></label>
                     <select v-model="series.mappingId" class="select select-bordered select-sm">
                       <option :value="undefined">Inherit Global Mapping</option>
-                      <option v-for="m in dashboardStore.dataMappings" :key="m.id" :value="m.id">
+                      <option v-for="m in filteredMappings" :key="m.id" :value="m.id">
                         {{ m.name }}
                       </option>
                     </select>
@@ -486,17 +503,7 @@ const removeSeries = (index: number) => {
               No series defined.
             </div>
 
-            <div class="divider">Legacy / Single Value</div>
           </template>
-
-          <div class="form-control w-full">
-            <label class="label"><span class="label-text">Value Key</span></label>
-            <input v-model="localConfig.settings.valueKey" type="text" class="input input-bordered font-mono"
-              placeholder="e.g. temperature" />
-            <label class="label" v-if="localConfig.type === 'chart'">
-              <span class="label-text-alt text-warning">Used if no series are defined above.</span>
-            </label>
-          </div>
 
           <template v-if="localConfig.type === 'scatter'">
             <div class="divider">Scatter Configuration</div>

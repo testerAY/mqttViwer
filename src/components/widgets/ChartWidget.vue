@@ -30,6 +30,7 @@ use([
 const props = defineProps<{
   config: WidgetConfig;
   message: MqttMessage | undefined;
+  clearToken?: number;
 }>();
 
 const mqttStore = useMqttStore();
@@ -46,6 +47,10 @@ const timeWindow = computed(() => (props.config.settings?.timeWindow || 60) * 10
 
 // Store history per series index
 const seriesHistory = ref<Record<number, ChartPoint[]>>({});
+
+watch(() => props.clearToken, (token, prev) => {
+  if (token !== undefined && token !== prev) seriesHistory.value = {};
+});
 
 // Computed Normalized Series Definitions
 const seriesDefs = computed<DataSeries[]>(() => {

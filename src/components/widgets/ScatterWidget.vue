@@ -15,6 +15,7 @@ use([CanvasRenderer, ScatterChart, GridComponent, TooltipComponent]);
 const props = defineProps<{
     config: WidgetConfig;
     message: MqttMessage | undefined;
+    clearToken?: number;
 }>();
 
 const mqttStore = useMqttStore();
@@ -23,6 +24,14 @@ const maxPoints = 200;
 
 const currentX = ref<number | null>(null);
 const currentY = ref<number | null>(null);
+
+watch(() => props.clearToken, (token, prev) => {
+    if (token !== undefined && token !== prev) {
+        history.value = [];
+        currentX.value = null;
+        currentY.value = null;
+    }
+});
 
 const xTopic = computed(() => props.config.settings?.xTopic || props.config.topic);
 const yTopic = computed(() => props.config.settings?.yTopic || props.config.topic);

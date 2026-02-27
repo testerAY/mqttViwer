@@ -273,6 +273,65 @@ struct TopicRow {
     topic: String,
 }
 
+#[derive(FromRow, Serialize)]
+struct TopicCount {
+    topic: String,
+    count: i64,
+}
+
+#[tauri::command]
+pub async fn get_message_counts(
+    pool: tauri::State<'_, Option<SqlitePool>>,
+) -> Result<HashMap<String, i64>, String> {
+    let p = match pool.inner() {
+        Some(pool) => pool,
+        None => return Ok(HashMap::new()),
+    };
+
+    let rows = sqlx::query_as::<_, TopicCount>(
+        "SELECT topic, COUNT(*) as count FROM messages GROUP BY topic",
+    )
+    .fetch_all(p)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let map = rows.into_iter().map(|r| (r.topic, r.count)).collect();
+    Ok(map)
+}
+
+#[tauri::command]
+pub async fn delete_messages(
+    pool: tauri::State<'_, Option<SqlitePool>>,
+    topics: Option<Vec<String>>,
+) -> Result<u64, String> {
+    let p = match pool.inner() {
+        Some(pool) => pool,
+        None => return Err("Database not connected".to_string()),
+    };
+
+    let rows_affected = match topics {
+        None => sqlx::query("DELETE FROM messages")
+            .execute(p)
+            .await
+            .map_err(|e| e.to_string())?
+            .rows_affected(),
+        Some(topics) => {
+            let mut total = 0u64;
+            for topic in &topics {
+                let result = sqlx::query("DELETE FROM messages WHERE topic = ?")
+                    .bind(topic)
+                    .execute(p)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                total += result.rows_affected();
+            }
+            total
+        }
+    };
+
+    Ok(rows_affected)
+}
+
 #[tauri::command]
 pub async fn get_distinct_topics(
     pool: tauri::State<'_, Option<SqlitePool>>,
