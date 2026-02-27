@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
+import { ref, watch, computed, onMounted, onUnmounted, toRef } from 'vue';
 import { useMqttStore } from '../../stores/useMqttStore';
+import { useDashboardStore } from '../../stores/useDashboardStore';
 import type { WidgetConfig, DataSeries } from '../../types/dashboard';
 import type { MqttMessage } from '../../types/mqtt';
 import { extractValue } from '../../utils/jsonExtractor';
@@ -9,6 +10,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { CustomChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
+import { useWidgetData } from '../../composables/useWidgetData';
 
 use([CanvasRenderer, CustomChart, GridComponent, TooltipComponent, LegendComponent]);
 
@@ -18,6 +20,9 @@ const props = defineProps<{
 }>();
 
 const mqttStore = useMqttStore();
+const dashboardStore = useDashboardStore();
+const { topic: globalTopic, valueKey: globalValueKey } = useWidgetData(toRef(props, 'config'));
+
 const history = ref<any[]>([]);
 
 const seriesDefs = computed<DataSeries[]>(() => {
@@ -26,7 +31,7 @@ const seriesDefs = computed<DataSeries[]>(() => {
     }
     return [{
         topic: '',
-        key: props.config.settings?.valueKey,
+        key: '',
         name: props.config.title || 'Status',
         color: undefined
     }];
@@ -34,16 +39,35 @@ const seriesDefs = computed<DataSeries[]>(() => {
 
 const seriesStates = ref<Record<number, { value: string, startTime: number }>>({});
 
+const resolveSeriesData = (s: DataSeries) => {
+    let topic = s.topic;
+    let key = s.key;
+
+    if (s.mappingId) {
+        const m = dashboardStore.getDataMappingById(s.mappingId);
+        if (m) {
+            topic = m.topic;
+            if (!key) key = m.valueKey;
+        }
+    }
+
+    if (!topic) topic = globalTopic.value;
+    if (!key && topic === globalTopic.value) key = globalValueKey.value;
+
+    return { topic, key };
+};
+
 const processMessage = (msg: MqttMessage, topic: string) => {
     seriesDefs.value.forEach((s, idx) => {
-        if ((s.topic || props.config.topic) === topic) {
-            const rawVal = extractValue(msg.payload, s.key);
+        const { topic: targetTopic, key: targetKey } = resolveSeriesData(s);
+
+        if (targetTopic === topic) {
+            const rawVal = extractValue(msg.payload, targetKey);
             const val = String(rawVal);
             const currentState = seriesStates.value[idx];
             const timestamp = msg.timestamp * 1000;
 
             if (currentState && currentState.value !== val) {
-                // Close previous
                 history.value.push({
                     index: idx,
                     name: s.name || s.key || `Row ${idx}`,
@@ -51,10 +75,8 @@ const processMessage = (msg: MqttMessage, topic: string) => {
                     end: timestamp,
                     value: currentState.value
                 });
-                // Start new
                 seriesStates.value[idx] = { value: val, startTime: timestamp };
 
-                // Prune history
                 const window = (props.config.settings?.timeWindow || 60) * 1000;
                 const cutoff = Date.now() - window - 10000;
                 const startOfToday = new Date().setHours(0, 0, 0, 0);
@@ -72,12 +94,15 @@ const processMessage = (msg: MqttMessage, topic: string) => {
 };
 
 watch(() => props.message, (msg) => {
-    if (msg && props.config.topic) processMessage(msg, props.config.topic);
+    if (msg && globalTopic.value) processMessage(msg, globalTopic.value);
 });
 
 const extraTopics = computed(() => {
     const s = new Set<string>();
-    seriesDefs.value.forEach(x => { if (x.topic && x.topic !== props.config.topic) s.add(x.topic); });
+    seriesDefs.value.forEach(x => {
+        const { topic } = resolveSeriesData(x);
+        if (topic && topic !== globalTopic.value) s.add(topic);
+    });
     return Array.from(s);
 });
 
@@ -96,7 +121,22 @@ const updateNow = () => {
     animFrame = requestAnimationFrame(updateNow);
 };
 
-onMounted(() => updateNow());
+onMounted(async () => {
+    updateNow();
+
+    const topicsToFetch = new Set<string>();
+    if (globalTopic.value) topicsToFetch.add(globalTopic.value);
+    extraTopics.value.forEach(t => topicsToFetch.add(t));
+
+    for (const topic of topicsToFetch) {
+        if (!topic) continue;
+        try {
+            const msgs = await mqttStore.getHistory(topic, 100);
+            [...msgs].reverse().forEach(msg => processMessage(msg, topic));
+        } catch (e) { console.error(e); }
+    }
+});
+
 onUnmounted(() => cancelAnimationFrame(animFrame));
 
 const getColor = (str: string) => {
@@ -114,7 +154,7 @@ const renderItem = (params: any, api: any) => {
     const end = api.coord([api.value(2), categoryIndex]);
     const height = api.size([0, 1])[1] * 0.6;
 
-    const width = Math.max(end[0] - start[0], 1); // Minimum 1px
+    const width = Math.max(end[0] - start[0], 1);
 
     return {
         type: 'rect',
@@ -145,14 +185,13 @@ const option = computed(() => {
         minTime = maxTime - window;
     }
 
-    // 当日の開始時刻
     const startOfToday = new Date().setHours(0, 0, 0, 0);
 
     Object.entries(seriesStates.value).forEach(([k, v]) => {
         const idx = Number(k);
         data.push({
             index: idx,
-            start: Math.max(v.startTime, startOfToday), // 当日以前の開始は当日0時にクリップ
+            start: Math.max(v.startTime, startOfToday),
             end: now.value,
             value: v.value
         });

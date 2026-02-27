@@ -1,45 +1,63 @@
-# Current Task: Widget Improvements
+# Data Mapping 一元化機能 実装ToDoリスト
 
-## Objective
-Update Chart, Scatter, Plotter, and Gantt widgets to restrict data to the current day, validate window size, set default settings, and remove redundant settings.
+## Phase 1: データ構造とストアの拡張
+Data Mappingの情報を管理するための基盤を作成します。
 
-## Todo List
+- [ ] **型定義の追加 (`src/types/dashboard.ts`)**
+    - [ ] `DataMapping` インターフェースを定義する。
+        - フィールド: `id`, `name`, `type` ('sub' | 'pub'), `topic`, `valueKey`, `description?`
+    - [ ] `DashboardLayout` 型（またはそれをラップする親の型）に `dataMappings: DataMapping[]` フィールドを追加。
 
-### 1. Default Settings (src/stores/useDashboardStore.ts)
-- [x] Update `addWidget` to set default `settings` for `chart`, `scatter`, `plotter`, `gantt`.
-  - [x] Chart: `{ timeMode: 'relative', timeWindow: 60, chartType: 'line' }`
-  - [x] Plotter: `{ timeMode: 'relative', timeWindow: 60 }`
-  - [x] Gantt: `{ timeMode: 'relative', timeWindow: 60 }`
-  - [x] Scatter: `{}` (or specific defaults if needed)
+- [ ] **ストアの更新 (`src/stores/useDashboardStore.ts`)**
+    - [ ] `dataMappings` state変数を追加。
+    - [ ] アクションの実装:
+        - `addDataMapping(mapping: DataMapping)`
+        - `updateDataMapping(id: string, mapping: DataMapping)`
+        - `removeDataMapping(id: string)`
+        - `getDataMappingById(id: string)`
+    - [ ] `saveLayout` / `loadLayout` ロジックの修正:
+        - `items` だけでなく `dataMappings` も保存・復元対象にする。
 
-### 2. Widget Settings Modal (src/components/dashboard/WidgetSettingsModal.vue)
-- [x] Add `min="0"` to "Window Size" input.
-- [x] Remove "X-Axis Key" input for `chart` type.
-- [x] Change Window Size input to separate Hours, Minutes, Seconds fields.
+## Phase 2: Data Mapping 設定UIの実装
+ユーザーがデータ定義を行うための管理画面を作成します。
 
-### 3. Chart Widget (src/components/widgets/ChartWidget.vue)
-- [x] Remove `xKey` usage (force time-based X-axis).
-- [x] Replace `maxPoints` with `timeWindow` logic.
-- [x] Implement "Today Only" filtering (discard data < 00:00:00 today).
+- [ ] **新規コンポーネント作成 (`src/components/dashboard/DataMappingModal.vue`)**
+    - [ ] モーダルウィンドウのUI作成（左側リスト、右側詳細）。
+    - [ ] 詳細編集フォームの実装:
+        - Data Type (Subscribe / Publish)
+        - Name (識別名)
+        - Topic (入力/補完)
+        - Value Key (JSONパス)
+    - [ ] プレビュー機能の実装（既存ロジック流用）。
 
-### 4. Plotter Widget (src/components/widgets/PlotterWidget.vue)
-- [x] Implement "Today Only" filtering in `processMessage`.
-- [x] Change X-axis tick label to show time instead of relative seconds.
+- [ ] **ヘッダーへの導線追加 (`src/App.vue`)**
+    - [ ] 「Data Mappings」ボタンを追加。
+    - [ ] モーダル開閉制御の実装。
 
-### 5. Gantt Widget (src/components/widgets/GanttWidget.vue)
-- [x] Implement "Today Only" filtering in `processMessage`.
-- [x] Change X-axis tick label to show time instead of relative seconds (verify if needed).
-- [x] Fix graph display range protruding from X-axis range (enable clipping).
+## Phase 3: ウィジェット設定画面の改修
+ウィジェット設定でTopicを直接入力するのではなく、Mappingを選択する形式に変更します。
 
-### 6. Scatter Widget (src/components/widgets/ScatterWidget.vue)
-- [x] Update internal state to store timestamps.
-- [x] Implement "Today Only" filtering.
+- [ ] **設定モーダルの修正 (`src/components/dashboard/WidgetSettingsModal.vue`)**
+    - [ ] **Generalタブ**:
+        - `MQTT Topic` 入力を削除し、`Data Source` セレクトボックスに変更。
+        - マッピングの `name` をリスト表示。
+    - [ ] **Data Mappingタブ**:
+        - `Value Key` 入力を削除。
+        - チャート等のSeries設定でもMapping選択を使用するように変更。
+    - [ ] **データ保存構造の変更**:
+        - `topic` / `valueKey` の代わりに `mappingId` を保存。
 
-## Verification
-- [x] Verify new widgets have default settings.
-- [x] Verify Window Size cannot be negative.
-- [x] Verify Chart widget settings do not show X-Axis Key.
-- [x] Verify all 4 widgets only show data from the current day.
-- [x] Verify Plotter and Gantt show absolute time on X-axis.
-- [x] Verify Gantt chart respects X-axis boundaries (clipping).
-- [x] Verify Window Size input allows H/M/S setting and updates the total seconds correctly.
+## Phase 4: ウィジェット本体のデータ取得ロジック修正
+設定された `mappingId` を元にデータを取得・送信するように変更します。
+
+- [ ] **データ解決ロジックの実装**
+    - [ ] Composable `useWidgetData(widgetId)` の作成。
+        - `mappingId` から `topic`, `key` を解決し、現在の値を返す。
+
+- [ ] **各ウィジェットの修正**
+    - [ ] `ValueDisplayWidget`, `ChartWidget` 等: `topic` プロパティの代わりに解決されたデータを使用。
+    - [ ] `SwitchWidget`, `SliderWidget` (Publish系): Publish先をMappingのTopicに変更。
+
+## (オプション) 移行・互換性対応
+- [ ] **マイグレーション処理**
+    - [ ] 旧形式のレイアウト読み込み時、自動的にData Mapping定義を生成してリストに追加する処理の実装。

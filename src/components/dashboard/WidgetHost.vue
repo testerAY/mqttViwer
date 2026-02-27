@@ -2,11 +2,12 @@
 import { computed, onMounted, ref, watch, shallowRef } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import { useMqttStore } from '../../stores/useMqttStore';
+import { useDashboardStore } from '../../stores/useDashboardStore';
 import { usePluginStore } from '../../stores/usePluginStore';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
-import { getWidgetComponent } from '../../registries/widgetRegistry'; // レジストリ
+import { getWidgetComponent } from '../../registries/widgetRegistry';
 
 const props = defineProps<{
   widget: WidgetConfig;
@@ -22,13 +23,30 @@ const emit = defineEmits<{
 }>();
 
 const mqttStore = useMqttStore();
+const dashboardStore = useDashboardStore();
 const pluginTagName = ref<string | null>(null);
 const loadError = ref<string | null>(null);
 const isLoading = ref(false);
 
+const resolvedTopic = computed(() => {
+  if (props.widget.mappingId) {
+    const mapping = dashboardStore.getDataMappingById(props.widget.mappingId);
+    if (mapping) return mapping.topic;
+  }
+  return props.widget.topic;
+});
+
+const resolvedMappingName = computed(() => {
+  if (props.widget.mappingId) {
+    const mapping = dashboardStore.getDataMappingById(props.widget.mappingId);
+    if (mapping) return mapping.name;
+  }
+  return null;
+});
+
 const rawMessage = computed(() => {
-  if (!props.widget.topic) return undefined;
-  return mqttStore.dataMap.get(props.widget.topic);
+  if (!resolvedTopic.value) return undefined;
+  return mqttStore.dataMap.get(resolvedTopic.value);
 });
 
 const message = ref<any>(undefined);
@@ -79,16 +97,14 @@ watch(() => props.widget.type, async (newType) => {
 
   const comp = getWidgetComponent(newType);
 
-  // すでにレジストリにある場合は何もしない
   if (comp) {
     widgetComponent.value = comp;
     return;
   }
 
-  // レジストリになければ、PluginStoreを使ってロードを試みる
   isLoading.value = true;
   loadError.value = null;
-  widgetComponent.value = null; // ロード中はクリア
+  widgetComponent.value = null;
 
   try {
     const success = await usePluginStore().loadPlugin(newType);
@@ -106,14 +122,14 @@ watch(() => props.widget.type, async (newType) => {
 }, { immediate: true });
 
 const exportCsv = async () => {
-  if (!props.widget.topic) {
+  if (!resolvedTopic.value) {
     alert('No topic set for this widget.');
     return;
   }
 
   try {
     const csvData: string = await invoke('export_widget_data_as_csv', {
-      topic: props.widget.topic,
+      topic: resolvedTopic.value,
     });
 
     if (!csvData) {
@@ -142,8 +158,13 @@ const exportCsv = async () => {
     <div class="card-body p-2 flex-grow-0 flex-row justify-between items-start min-h-[3rem]">
       <div class="overflow-hidden">
         <h3 class="card-title text-sm truncate" :title="widget.title">{{ widget.title }}</h3>
-        <div v-if="widget.topic" class="badge badge-ghost badge-xs truncate max-w-full" :title="widget.topic">{{
-          widget.topic }}</div>
+        <div v-if="resolvedMappingName" class="badge badge-primary badge-xs truncate max-w-full"
+          :title="resolvedTopic || ''">
+          {{ resolvedMappingName }}
+        </div>
+        <div v-else-if="resolvedTopic" class="badge badge-ghost badge-xs truncate max-w-full" :title="resolvedTopic">
+          {{ resolvedTopic }}
+        </div>
       </div>
 
       <div class="dropdown dropdown-end opacity-0 group-hover:opacity-100 transition-opacity">

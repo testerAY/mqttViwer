@@ -2,7 +2,6 @@
 import { ref, watch } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import { useDashboardStore } from '../../stores/useDashboardStore';
-import { invoke } from '@tauri-apps/api/core';
 import { useMqttStore } from '../../stores/useMqttStore';
 import { usePluginStore } from '../../stores/usePluginStore';
 import { extractValue } from '../../utils/jsonExtractor';
@@ -36,7 +35,6 @@ interface EditableLayout {
 }
 const localLayout = ref<EditableLayout | null>(null);
 
-const availableTopics = ref<string[]>([]);
 const previewValue = ref<any>(null);
 
 const windowHours = ref(0);
@@ -49,15 +47,6 @@ const updateWindowSize = () => {
   const m = windowMinutes.value || 0;
   const s = windowSeconds.value || 0;
   localConfig.value.settings.timeWindow = Math.max(0, h * 3600 + m * 60 + s);
-};
-
-const fetchTopics = async () => {
-  try {
-    const topics = await invoke<string[]>('get_distinct_topics');
-    availableTopics.value = topics;
-  } catch (error) {
-    console.error('Failed to fetch topics:', error);
-  }
 };
 
 watch(() => props.open, (isOpen) => {
@@ -102,17 +91,14 @@ watch(() => props.open, (isOpen) => {
         h: item.h
       };
 
-      // Fetch topics when modal opens
-      fetchTopics();
-      // Update preview initially
       updatePreview();
     }
   }
 });
 
-// Update preview when topic or key changes
+// Update preview when mapping or topic changes
 watch(
-  () => [localConfig.value?.topic, localConfig.value?.settings.valueKey],
+  () => [localConfig.value?.mappingId, localConfig.value?.topic, localConfig.value?.settings.valueKey],
   () => {
     updatePreview();
   },
@@ -120,18 +106,30 @@ watch(
 );
 
 const updatePreview = () => {
-  if (!localConfig.value?.topic) {
+  let topic = localConfig.value?.topic;
+  let valueKey = localConfig.value?.settings.valueKey;
+
+  // Resolve from mapping if present
+  if (localConfig.value?.mappingId) {
+    const mapping = dashboardStore.getDataMappingById(localConfig.value.mappingId);
+    if (mapping) {
+      topic = mapping.topic;
+      valueKey = mapping.valueKey;
+    }
+  }
+
+  if (!topic) {
     previewValue.value = null;
     return;
   }
-  const lastMessage = mqttStore.lastMessages[localConfig.value.topic];
+  const lastMessage = mqttStore.lastMessages[topic];
   if (lastMessage) {
     try {
       const payloadJson = JSON.parse(lastMessage.payload);
-      const valueKey = localConfig.value.settings.valueKey || '';
+      const key = valueKey || '';
       previewValue.value = {
         raw: payloadJson,
-        extracted: extractValue(payloadJson, valueKey),
+        extracted: extractValue(payloadJson, key),
       };
     } catch (e) {
       // Not a JSON payload, show raw
@@ -164,7 +162,7 @@ const addSeries = () => {
   const series = localConfig.value.settings.series as any[];
   const nextIndex = Number(series.length) + 1;
   series.push({
-    topic: '',
+    mappingId: undefined,
     key: '',
     name: `Series ${nextIndex}`,
     color: '#3b82f6'
@@ -207,12 +205,18 @@ const removeSeries = (index: number) => {
             </label>
           </div>
 
+          <!-- Mapping Selector -->
           <div class="form-control w-full" v-if="!currentPlugin || currentPlugin.capabilities?.requiresTopic">
-            <label class="label"><span class="label-text">MQTT Topic</span></label>
-            <input v-model="localConfig.topic" type="text" class="input input-bordered font-mono" list="topic-list" />
-            <datalist id="topic-list">
-              <option v-for="topic in availableTopics" :key="topic" :value="topic" />
-            </datalist>
+            <label class="label"><span class="label-text">Data Source (Mapping)</span></label>
+            <select v-model="localConfig.mappingId" class="select select-bordered">
+              <option :value="undefined">-- Select Mapping --</option>
+              <option v-for="m in dashboardStore.dataMappings" :key="m.id" :value="m.id">
+                {{ m.name }} ({{ m.topic }})
+              </option>
+            </select>
+            <label class="label" v-if="!localConfig.mappingId && localConfig.topic">
+              <span class="label-text-alt text-warning">Using legacy topic: {{ localConfig.topic }}</span>
+            </label>
           </div>
 
           <div class="form-control w-full">
@@ -426,8 +430,7 @@ const removeSeries = (index: number) => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
-            <span>Extract values from JSON payload using object keys (e.g. "sensor.temp"). Leave empty for raw
-              value.</span>
+            <span>Map data sources using central definitions.</span>
           </div>
 
           <template v-if="['chart', 'plotter', 'gantt'].includes(localConfig.type)">
@@ -451,13 +454,18 @@ const removeSeries = (index: number) => {
                     <input v-model="series.name" type="text" class="input input-bordered input-sm" />
                   </div>
                   <div class="form-control w-full">
-                    <label class="label py-1"><span class="label-text-alt">Topic (Optional)</span></label>
-                    <input v-model="series.topic" type="text" class="input input-bordered input-sm font-mono"
-                      list="topic-list" placeholder="Inherit Global Topic" />
+                    <label class="label py-1"><span class="label-text-alt">Data Mapping</span></label>
+                    <select v-model="series.mappingId" class="select select-bordered select-sm">
+                      <option :value="undefined">Inherit Global Mapping</option>
+                      <option v-for="m in dashboardStore.dataMappings" :key="m.id" :value="m.id">
+                        {{ m.name }}
+                      </option>
+                    </select>
                   </div>
                   <div class="form-control w-full">
-                    <label class="label py-1"><span class="label-text-alt">Value Key</span></label>
-                    <input v-model="series.key" type="text" class="input input-bordered input-sm font-mono" />
+                    <label class="label py-1"><span class="label-text-alt">Value Key (Override)</span></label>
+                    <input v-model="series.key" type="text" class="input input-bordered input-sm font-mono"
+                      placeholder="Optional override" />
                   </div>
                   <div class="form-control w-full">
                     <label class="label py-1"><span class="label-text-alt">Color</span></label>
@@ -475,7 +483,7 @@ const removeSeries = (index: number) => {
               </div>
             </div>
             <div v-else class="text-center text-sm opacity-60 p-4 border border-dashed rounded-md">
-              No series defined. <br />Falls back to legacy "Value Key" below.
+              No series defined.
             </div>
 
             <div class="divider">Legacy / Single Value</div>
@@ -525,7 +533,7 @@ const removeSeries = (index: number) => {
             </div>
           </div>
           <div v-else class="text-center text-sm opacity-60">
-            No message received yet on the selected topic.
+            No message received yet on the selected topic/mapping.
           </div>
 
         </div>

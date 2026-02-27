@@ -28,6 +28,25 @@ pub struct DashboardItem {
     widget: WidgetConfig,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DataMapping {
+    id: String,
+    name: String,
+    #[serde(rename = "type")]
+    mapping_type: String, // "sub" | "pub"
+    topic: String,
+    #[serde(rename = "valueKey")]
+    value_key: Option<String>,
+    description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DashboardLayout {
+    items: Vec<DashboardItem>,
+    #[serde(rename = "dataMappings")]
+    data_mappings: Vec<DataMapping>,
+}
+
 fn update_app_config(app: &tauri::AppHandle, layout_path: String) -> Result<(), String> {
     let mut config = config::load_config(app)?;
     config.last_layout_path = Some(layout_path);
@@ -53,18 +72,21 @@ pub async fn save_app_settings(
     config::save_config(&app, &config)
 }
 
-fn save_layout_impl(path: &Path, layout: &Vec<DashboardItem>) -> Result<(), String> {
+fn save_layout_impl(path: &Path, layout: &DashboardLayout) -> Result<(), String> {
     let json = serde_json::to_string_pretty(layout).map_err(|e| e.to_string())?;
     fs::write(path, json).map_err(|e| e.to_string())?;
     Ok(())
 }
 
-fn load_layout_impl(path: &Path) -> Result<Vec<DashboardItem>, String> {
+fn load_layout_impl(path: &Path) -> Result<DashboardLayout, String> {
     if !path.exists() {
-        return Ok(vec![]);
+        return Ok(DashboardLayout {
+            items: vec![],
+            data_mappings: vec![],
+        });
     }
     let json = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let layout: Vec<DashboardItem> = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+    let layout: DashboardLayout = serde_json::from_str(&json).map_err(|e| e.to_string())?;
     Ok(layout)
 }
 
@@ -73,12 +95,13 @@ pub async fn save_layout(
     app: tauri::AppHandle,
     lock: tauri::State<'_, LayoutFileLock>,
     path: String,
-    layout: Vec<DashboardItem>,
+    layout: DashboardLayout,
 ) -> Result<(), String> {
     println!(
-        "Backend: save_layout called. Path: {}, Items: {}",
+        "Backend: save_layout called. Path: {}, Items: {}, Mappings: {}",
         path,
-        layout.len()
+        layout.items.len(),
+        layout.data_mappings.len()
     );
     // Acquire lock to prevent race conditions
     let _guard = lock.0.lock().await;
@@ -90,10 +113,7 @@ pub async fn save_layout(
 }
 
 #[tauri::command]
-pub async fn load_layout(
-    app: tauri::AppHandle,
-    path: String,
-) -> Result<Vec<DashboardItem>, String> {
+pub async fn load_layout(app: tauri::AppHandle, path: String) -> Result<DashboardLayout, String> {
     println!("Backend: load_layout called. Path: {}", path);
     let layout_path = PathBuf::from(&path);
     let layout = load_layout_impl(&layout_path)?;
@@ -111,20 +131,30 @@ mod tests {
         let temp_dir = env::temp_dir();
         let file_path = temp_dir.join("test_layout.json");
 
-        let layout = vec![DashboardItem {
-            i: "1".to_string(),
-            x: 0,
-            y: 0,
-            w: 2,
-            h: 2,
-            widget: WidgetConfig {
-                id: "1".to_string(),
-                widget_type: "test".to_string(),
-                title: "Test Widget".to_string(),
-                topic: None,
-                settings: None,
-            },
-        }];
+        let layout = DashboardLayout {
+            items: vec![DashboardItem {
+                i: "1".to_string(),
+                x: 0,
+                y: 0,
+                w: 2,
+                h: 2,
+                widget: WidgetConfig {
+                    id: "1".to_string(),
+                    widget_type: "test".to_string(),
+                    title: "Test Widget".to_string(),
+                    topic: None,
+                    settings: None,
+                },
+            }],
+            data_mappings: vec![DataMapping {
+                id: "map1".to_string(),
+                name: "Test Map".to_string(),
+                mapping_type: "sub".to_string(),
+                topic: "test/topic".to_string(),
+                value_key: None,
+                description: None,
+            }],
+        };
 
         // Save
         let result = save_layout_impl(&file_path, &layout);
@@ -135,9 +165,11 @@ mod tests {
         assert!(loaded_result.is_ok(), "Failed to load layout");
         let loaded_layout = loaded_result.unwrap();
 
-        assert_eq!(loaded_layout.len(), 1);
-        assert_eq!(loaded_layout[0].i, "1");
-        assert_eq!(loaded_layout[0].widget.title, "Test Widget");
+        assert_eq!(loaded_layout.items.len(), 1);
+        assert_eq!(loaded_layout.items[0].i, "1");
+        assert_eq!(loaded_layout.items[0].widget.title, "Test Widget");
+        assert_eq!(loaded_layout.data_mappings.len(), 1);
+        assert_eq!(loaded_layout.data_mappings[0].id, "map1");
 
         // Clean up
         let _ = fs::remove_file(file_path);

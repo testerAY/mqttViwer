@@ -6,6 +6,7 @@ import { useAppStore } from './stores/useAppStore';
 import { storeToRefs } from 'pinia';
 import DashboardGrid from './components/dashboard/DashboardGrid.vue';
 import SettingsModal from './components/SettingsModal.vue';
+import DataMappingModal from './components/dashboard/DataMappingModal.vue';
 import ToastContainer from './components/ToastContainer.vue';
 import { usePluginStore } from './stores/usePluginStore';
 
@@ -18,6 +19,7 @@ const { toggleEditMode } = dashboardStore;
 
 const appStore = useAppStore();
 const showSettings = ref(false);
+const showDataMappings = ref(false);
 
 const publishTopic = ref('test/topic');
 const publishPayload = ref('Hello Tauri!');
@@ -125,6 +127,12 @@ onMounted(async () => {
         <a class="btn btn-ghost text-xl">MQTT Web Viewer</a>
       </div>
       <div class="flex-none flex items-center gap-4">
+        <button class="btn btn-ghost btn-circle" @click="showDataMappings = true" title="Data Mappings">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+          </svg>
+        </button>
         <button class="btn btn-ghost btn-circle" @click="showSettings = true" title="Settings">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -193,6 +201,7 @@ onMounted(async () => {
       </div>
     </main>
     <SettingsModal :open="showSettings" @close="showSettings = false" />
+    <DataMappingModal :open="showDataMappings" @close="showDataMappings = false" />
     <ToastContainer />
   </div>
 </template>

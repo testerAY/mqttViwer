@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
+import { ref, watch, computed, onMounted, onUnmounted, toRef } from 'vue';
 import { useMqttStore } from '../../stores/useMqttStore';
+import { useDashboardStore } from '../../stores/useDashboardStore';
 import type { WidgetConfig, DataSeries } from '../../types/dashboard';
 import type { MqttMessage } from '../../types/mqtt';
 import { extractValue } from '../../utils/jsonExtractor';
@@ -9,6 +10,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { LineChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
+import { useWidgetData } from '../../composables/useWidgetData';
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent]);
 
@@ -18,7 +20,9 @@ const props = defineProps<{
 }>();
 
 const mqttStore = useMqttStore();
-const windowSeconds = 60; // TODO: Make configurable
+const dashboardStore = useDashboardStore();
+const { topic: globalTopic, valueKey: globalValueKey } = useWidgetData(toRef(props, 'config'));
+
 const timeWindow = computed(() => (props.config.settings?.timeWindow || 60) * 1000);
 
 interface PlotPoint {
@@ -34,14 +38,32 @@ const seriesDefs = computed<DataSeries[]>(() => {
     }
     return [{
         topic: '',
-        key: props.config.settings?.valueKey,
+        key: '',
         name: props.config.title,
         color: undefined
     }];
 });
 
+const resolveSeriesData = (s: DataSeries) => {
+    let topic = s.topic;
+    let key = s.key;
+
+    if (s.mappingId) {
+        const m = dashboardStore.getDataMappingById(s.mappingId);
+        if (m) {
+            topic = m.topic;
+            if (!key) key = m.valueKey;
+        }
+    }
+
+    if (!topic) topic = globalTopic.value;
+    if (!key && topic === globalTopic.value) key = globalValueKey.value;
+
+    return { topic, key };
+};
+
 const getPoint = (msg: MqttMessage, key?: string): PlotPoint | null => {
-    const rawVal = extractValue(msg.payload, key || props.config.settings?.yKey);
+    const rawVal = extractValue(msg.payload, key);
     const val = parseFloat(rawVal);
     if (isNaN(val)) return null;
     return { value: val, timestamp: msg.timestamp * 1000 };
@@ -49,17 +71,17 @@ const getPoint = (msg: MqttMessage, key?: string): PlotPoint | null => {
 
 const processMessage = (msg: MqttMessage, topic: string) => {
     seriesDefs.value.forEach((s, idx) => {
-        if ((s.topic || props.config.topic) === topic) {
-            const pt = getPoint(msg, s.key);
+        const { topic: targetTopic, key: targetKey } = resolveSeriesData(s);
+
+        if (targetTopic === topic) {
+            const pt = getPoint(msg, targetKey);
             if (pt) {
-                // 当日チェック
                 const startOfToday = new Date().setHours(0, 0, 0, 0);
                 if (pt.timestamp < startOfToday) return;
 
                 if (!seriesHistory.value[idx]) seriesHistory.value[idx] = [];
                 seriesHistory.value[idx].push(pt);
 
-                // Prune data outside window + buffer
                 const cutoff = Date.now() - timeWindow.value - 10000;
                 const effectiveCutoff = Math.max(cutoff, startOfToday);
 
@@ -73,14 +95,15 @@ const processMessage = (msg: MqttMessage, topic: string) => {
 
 // Watch Global
 watch(() => props.message, (newMsg) => {
-    if (newMsg && props.config.topic) processMessage(newMsg, props.config.topic);
+    if (newMsg && globalTopic.value) processMessage(newMsg, globalTopic.value);
 });
 
 // Watch Extra Topics
 const extraTopics = computed(() => {
     const set = new Set<string>();
     seriesDefs.value.forEach(s => {
-        if (s.topic && s.topic !== props.config.topic) set.add(s.topic);
+        const { topic } = resolveSeriesData(s);
+        if (topic && topic !== globalTopic.value) set.add(topic);
     });
     return Array.from(set);
 });
@@ -106,15 +129,14 @@ const updateNow = () => {
 onMounted(async () => {
     updateNow();
 
-    // Initial History
     const topicsToFetch = new Set<string>();
-    if (props.config.topic) topicsToFetch.add(props.config.topic);
+    if (globalTopic.value) topicsToFetch.add(globalTopic.value);
     extraTopics.value.forEach(t => topicsToFetch.add(t));
 
     for (const topic of topicsToFetch) {
         if (!topic) continue;
         try {
-            const msgs = await mqttStore.getHistory(topic, 100); // Fetch enough for window
+            const msgs = await mqttStore.getHistory(topic, 100);
             [...msgs].reverse().forEach(msg => processMessage(msg, topic));
         } catch (e) { console.error(e); }
     }
@@ -129,7 +151,6 @@ const option = computed(() => {
     let minTime, maxTime;
 
     if (props.config.settings?.timeMode === 'absolute' && props.config.settings?.startTime && props.config.settings?.endTime) {
-        // 今日の日付に設定された時刻を適用する簡易実装
         const baseDate = new Date();
         const [startH, startM, startS] = props.config.settings.startTime.split(':').map(Number);
         const [endH, endM, endS] = props.config.settings.endTime.split(':').map(Number);
@@ -137,7 +158,6 @@ const option = computed(() => {
         minTime = new Date(baseDate).setHours(startH, startM, startS || 0);
         maxTime = new Date(baseDate).setHours(endH, endM, endS || 0);
     } else {
-        // Relative Mode
         maxTime = nowTs;
         minTime = maxTime - timeWindow.value;
     }

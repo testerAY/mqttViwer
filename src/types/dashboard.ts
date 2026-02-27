@@ -2,10 +2,20 @@ export type WidgetType = 'value-display' | 'switch' | 'chart' | 'gauge' | 'slide
 
 export interface DataSeries {
   topic: string;
+  mappingId?: string; // New field
   key?: string;
   name?: string;
   color?: string;
   yAxisIndex?: number;
+}
+
+export interface DataMapping {
+  id: string;
+  name: string;
+  type: 'sub' | 'pub';
+  topic: string;
+  valueKey?: string;
+  description?: string;
 }
 
 export interface WidgetConfig {
@@ -13,6 +23,7 @@ export interface WidgetConfig {
   type: WidgetType;
   title: string;
   topic?: string;
+  mappingId?: string;
   updateInterval?: number; // ms
   settings?: Record<string, any>;
 }
@@ -28,4 +39,5 @@ export interface DashboardItem {
 
 export interface DashboardLayout {
   items: DashboardItem[];
+  dataMappings: DataMapping[];
 }

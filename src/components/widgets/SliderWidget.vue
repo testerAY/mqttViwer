@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, toRef } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import type { MqttMessage } from '../../types/mqtt';
 import { useMqttStore } from '../../stores/useMqttStore';
+import { useWidgetData } from '../../composables/useWidgetData';
 
 const props = defineProps<{
   config: WidgetConfig;
@@ -10,6 +11,8 @@ const props = defineProps<{
 }>();
 
 const mqttStore = useMqttStore();
+
+const { topic } = useWidgetData(toRef(props, 'config'));
 
 const min = computed(() => props.config.settings?.min ?? 0);
 const max = computed(() => props.config.settings?.max ?? 100);
@@ -29,9 +32,9 @@ watch(() => props.message, (newMessage) => {
 });
 
 const publishValue = async () => {
-  if (!props.config.topic) return;
+  if (!topic.value) return;
   try {
-    await mqttStore.publishMessage(props.config.topic, String(currentValue.value), qos.value, retain.value);
+    await mqttStore.publishMessage(topic.value, String(currentValue.value), qos.value, retain.value);
   } catch (e) {
     console.error('Failed to publish slider value:', e);
   }

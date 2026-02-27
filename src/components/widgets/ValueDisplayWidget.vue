@@ -1,21 +1,32 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, toRef } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import type { MqttMessage } from '../../types/mqtt';
 import { extractValue } from '../../utils/jsonExtractor';
+import { useWidgetData } from '../../composables/useWidgetData';
 
 const props = defineProps<{
   config: WidgetConfig;
   message: MqttMessage | undefined;
 }>();
 
+const { valueKey } = useWidgetData(toRef(props, 'config'));
+
 const displayValue = computed(() => {
   if (!props.message) return '';
-  const val = extractValue(props.message.payload, props.config.settings?.valueKey);
-  
-  if (val === undefined) return 'N/A';
-  if (typeof val === 'object') return JSON.stringify(val);
-  return val;
+
+  let payload = props.message.payload;
+  try {
+    const json = JSON.parse(payload);
+    const val = extractValue(json, valueKey.value);
+    if (val === undefined) return 'N/A';
+    if (typeof val === 'object') return JSON.stringify(val);
+    return val;
+  } catch (e) {
+    // Not JSON, return raw payload if valueKey is empty, else N/A
+    if (!valueKey.value) return payload;
+    return 'N/A (Parse Error)';
+  }
 });
 </script>
 

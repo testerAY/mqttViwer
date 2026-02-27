@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { save, open } from '@tauri-apps/plugin-dialog';
-import type { DashboardItem, WidgetConfig } from '../types/dashboard';
+import type { DashboardItem, WidgetConfig, DashboardLayout, DataMapping } from '../types/dashboard';
 
 export const useDashboardStore = defineStore('dashboard', () => {
   const defaultLayout: DashboardItem[] = [
@@ -78,6 +78,7 @@ export const useDashboardStore = defineStore('dashboard', () => {
   ];
 
   const layout = ref<DashboardItem[]>([...defaultLayout]);
+  const dataMappings = ref<DataMapping[]>([]);
   const isEditing = ref(false);
   const currentLayoutPath = ref<string | null>(null);
 
@@ -89,9 +90,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
     try {
       const path = await invoke<string | null>('get_last_layout_path');
       if (path) {
-        const savedLayout = await invoke<DashboardItem[]>('load_layout', { path });
-        if (savedLayout && savedLayout.length > 0) {
-          layout.value = savedLayout;
+        const savedData = await invoke<DashboardLayout>('load_layout', { path });
+        if (savedData) {
+          layout.value = savedData.items || [];
+          dataMappings.value = savedData.dataMappings || [];
           currentLayoutPath.value = path;
         }
       }
@@ -110,7 +112,11 @@ export const useDashboardStore = defineStore('dashboard', () => {
       });
       
       if (path) {
-        await invoke('save_layout', { path, layout: layout.value });
+        const fullLayout: DashboardLayout = {
+          items: layout.value,
+          dataMappings: dataMappings.value
+        };
+        await invoke('save_layout', { path, layout: fullLayout });
         currentLayoutPath.value = path;
       }
     } catch (error) {
@@ -125,9 +131,13 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
     try {
       console.log('Saving layout to:', currentLayoutPath.value);
+      const fullLayout: DashboardLayout = {
+        items: layout.value,
+        dataMappings: dataMappings.value
+      };
       await invoke('save_layout', { 
         path: currentLayoutPath.value, 
-        layout: layout.value 
+        layout: fullLayout 
       });
       console.log('Layout saved successfully');
     } catch (error) {
@@ -147,9 +157,10 @@ export const useDashboardStore = defineStore('dashboard', () => {
       });
       
       if (path) {
-        const savedLayout = await invoke<DashboardItem[]>('load_layout', { path });
-        if (savedLayout && savedLayout.length > 0) {
-          layout.value = savedLayout;
+        const savedData = await invoke<DashboardLayout>('load_layout', { path });
+        if (savedData) {
+          layout.value = savedData.items || [];
+          dataMappings.value = savedData.dataMappings || [];
           currentLayoutPath.value = path as string;
         }
       }
@@ -252,6 +263,27 @@ export const useDashboardStore = defineStore('dashboard', () => {
     await saveLayout();
   };
 
+  // Data Mapping Actions
+  const addDataMapping = (mapping: Omit<DataMapping, 'id'>) => {
+    const id = crypto.randomUUID();
+    dataMappings.value.push({ ...mapping, id });
+  };
+  
+  const updateDataMapping = (id: string, updates: Partial<DataMapping>) => {
+    const index = dataMappings.value.findIndex(m => m.id === id);
+    if (index !== -1) {
+      dataMappings.value[index] = { ...dataMappings.value[index], ...updates };
+    }
+  };
+
+  const removeDataMapping = (id: string) => {
+    dataMappings.value = dataMappings.value.filter(m => m.id !== id);
+  };
+  
+  const getDataMappingById = (id: string) => {
+    return dataMappings.value.find(m => m.id === id);
+  };
+
   // ★追加: 新規ウィジェットドラッグ中のフラグ
   const isDraggingNewWidget = ref(false);
 
@@ -265,16 +297,22 @@ export const useDashboardStore = defineStore('dashboard', () => {
 
   return {
     layout,
+    dataMappings,
     isEditing,
     currentLayoutPath,
     toggleEditMode,
     updateLayout,
     saveLayoutAs,
+    saveLayout,
     openLayout,
     updateWidget,
     updateLayoutItem,
     removeWidget,
     addWidget,
+    addDataMapping,
+    updateDataMapping,
+    removeDataMapping,
+    getDataMappingById,
     isDraggingNewWidget,
     setDraggingNewWidget,
   };

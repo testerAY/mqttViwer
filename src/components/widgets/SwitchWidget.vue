@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, toRef } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import type { MqttMessage } from '../../types/mqtt';
 import { useMqttStore } from '../../stores/useMqttStore';
 import { useToastStore } from '../../stores/useToastStore';
+import { useWidgetData } from '../../composables/useWidgetData';
 
 const props = defineProps<{
   config: WidgetConfig;
@@ -14,6 +15,8 @@ const mqttStore = useMqttStore();
 const toastStore = useToastStore();
 const isPublishing = ref(false);
 
+const { topic } = useWidgetData(toRef(props, 'config'));
+
 const onPayload = computed(() => props.config.settings?.onPayload ?? 'ON');
 const offPayload = computed(() => props.config.settings?.offPayload ?? 'OFF');
 const qos = computed(() => props.config.settings?.qos ?? 0);
@@ -22,11 +25,11 @@ const retain = computed(() => props.config.settings?.retain ?? false);
 const isOn = computed(() => props.message?.payload === onPayload.value);
 
 const toggle = async () => {
-  if (!props.config.topic || isPublishing.value) return;
+  if (!topic.value || isPublishing.value) return;
   const payload = isOn.value ? offPayload.value : onPayload.value;
   isPublishing.value = true;
   try {
-    await mqttStore.publishMessage(props.config.topic, payload, qos.value, retain.value);
+    await mqttStore.publishMessage(topic.value, payload, qos.value, retain.value);
   } catch (e) {
     console.error('Failed to toggle switch:', e);
     toastStore.addToast('Failed to publish message', 'error');

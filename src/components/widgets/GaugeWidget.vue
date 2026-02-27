@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, toRef } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import type { MqttMessage } from '../../types/mqtt';
 import { extractValue } from '../../utils/jsonExtractor';
@@ -7,6 +7,7 @@ import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { GaugeChart } from 'echarts/charts';
 import VChart from 'vue-echarts';
+import { useWidgetData } from '../../composables/useWidgetData';
 
 use([
   CanvasRenderer,
@@ -18,9 +19,19 @@ const props = defineProps<{
   message: MqttMessage | undefined;
 }>();
 
+const { valueKey } = useWidgetData(toRef(props, 'config'));
+
 const value = computed(() => {
   if (!props.message) return 0;
-  const rawVal = extractValue(props.message.payload, props.config.settings?.valueKey);
+
+  let rawVal: any;
+  try {
+    const json = JSON.parse(props.message.payload);
+    rawVal = extractValue(json, valueKey.value);
+  } catch (e) {
+    if (!valueKey.value) rawVal = props.message.payload;
+  }
+
   const val = parseFloat(rawVal);
   return isNaN(val) ? 0 : val;
 });
@@ -50,17 +61,17 @@ const option = computed(() => ({
         }
       ],
       axisLine: {
-          lineStyle: {
-              width: 10
-          }
+        lineStyle: {
+          width: 10
+        }
       },
       axisLabel: {
-          distance: 15,
-          fontSize: 10
+        distance: 15,
+        fontSize: 10
       },
       title: {
-          fontSize: 12,
-          offsetCenter: [0, '80%']
+        fontSize: 12,
+        offsetCenter: [0, '80%']
       }
     }
   ]
