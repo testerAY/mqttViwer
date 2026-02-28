@@ -50,27 +50,29 @@ watch(() => props.clearToken, (token, prev) => {
 const resolveSeriesData = (s: DataSeries) => {
     let topic = s.topic;
     let key = s.key;
+    let valueType: string = 'json';
 
     if (s.mappingId) {
         const m = dashboardStore.getDataMappingById(s.mappingId);
         if (m) {
             topic = m.topic;
-            if (!key) key = m.valueKey;
+            valueType = m.valueType || 'json';
+            if (valueType === 'json' && !key) key = m.valueKey;
         }
     }
 
     if (!topic) topic = globalTopic.value;
     if (!key && topic === globalTopic.value) key = globalValueKey.value;
 
-    return { topic, key };
+    return { topic, key, valueType };
 };
 
 const processMessage = (msg: MqttMessage, topic: string) => {
     seriesDefs.value.forEach((s, idx) => {
-        const { topic: targetTopic, key: targetKey } = resolveSeriesData(s);
+        const { topic: targetTopic, key: targetKey, valueType: targetValueType } = resolveSeriesData(s);
 
         if (targetTopic === topic) {
-            const rawVal = extractValue(msg.payload, targetKey);
+            const rawVal = targetValueType === 'value' ? msg.payload : extractValue(msg.payload, targetKey);
             const val = String(rawVal);
             const currentState = seriesStates.value[idx];
             const timestamp = msg.timestamp * 1000;

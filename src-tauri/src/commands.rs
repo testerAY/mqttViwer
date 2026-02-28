@@ -35,6 +35,8 @@ pub struct DataMapping {
     #[serde(rename = "type")]
     mapping_type: String, // "sub" | "pub"
     topic: String,
+    #[serde(rename = "valueType", default)]
+    value_type: Option<String>,
     #[serde(rename = "valueKey")]
     value_key: Option<String>,
     description: Option<String>,
@@ -151,6 +153,7 @@ mod tests {
                 name: "Test Map".to_string(),
                 mapping_type: "sub".to_string(),
                 topic: "test/topic".to_string(),
+                value_type: None,
                 value_key: None,
                 description: None,
             }],

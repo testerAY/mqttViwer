@@ -26,8 +26,9 @@ export interface DataSeries {
 export interface DataMapping {
   id: string;
   name: string;
-  type: 'sub' | 'pub';
+  type: 'sub' | 'pub' | 'both';
   topic: string;
+  valueType?: 'value' | 'json';
   valueKey?: string;
   description?: string;
 }

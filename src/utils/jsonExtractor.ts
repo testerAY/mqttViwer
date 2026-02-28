@@ -54,3 +54,23 @@ export function extractValue(payload: string | any, key?: string): any {
 
   return current;
 }
+
+/**
+ * Builds a nested JSON object from a dot-notation key path and a value.
+ * Inverse of extractValue.
+ *
+ * @param keyPath The dot-notation key path (e.g. "sensor.temp")
+ * @param value The value to embed
+ * @returns A nested object (e.g. { sensor: { temp: 25 } })
+ */
+export function buildValue(keyPath: string, value: any): Record<string, any> {
+  const keys = keyPath.split('.');
+  const result: any = {};
+  let current = result;
+  for (let i = 0; i < keys.length - 1; i++) {
+    current[keys[i]] = {};
+    current = current[keys[i]];
+  }
+  current[keys[keys.length - 1]] = value;
+  return result;
+}

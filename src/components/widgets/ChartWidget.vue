@@ -69,27 +69,25 @@ const seriesDefs = computed<DataSeries[]>(() => {
 const resolveSeriesData = (s: DataSeries) => {
   let topic = s.topic;
   let key = s.key;
+  let valueType: string = 'json';
 
   if (s.mappingId) {
     const m = dashboardStore.getDataMappingById(s.mappingId);
     if (m) {
       topic = m.topic;
-      if (!key) key = m.valueKey;
+      valueType = m.valueType || 'json';
+      if (valueType === 'json' && !key) key = m.valueKey;
     }
   }
 
-  // If no specific topic, use global
   if (!topic) topic = globalTopic.value;
-  // If no specific key and using global topic, use global key? 
-  // Or if no key at all, rely on global key if available
   if (!key && topic === globalTopic.value) key = globalValueKey.value;
 
-  return { topic, key };
+  return { topic, key, valueType };
 };
 
-const getPointFromMessage = (msg: MqttMessage, valueKey?: string): ChartPoint | null => {
-  // Extract Y Value
-  const rawVal = extractValue(msg.payload, valueKey);
+const getPointFromMessage = (msg: MqttMessage, valueKey?: string, valueType?: string): ChartPoint | null => {
+  const rawVal = valueType === 'value' ? msg.payload : extractValue(msg.payload, valueKey);
   const val = parseFloat(rawVal);
   if (isNaN(val)) return null;
 
@@ -104,10 +102,10 @@ const getPointFromMessage = (msg: MqttMessage, valueKey?: string): ChartPoint | 
 
 const processMessage = (msg: MqttMessage, topic: string) => {
   seriesDefs.value.forEach((s, idx) => {
-    const { topic: targetTopic, key: targetKey } = resolveSeriesData(s);
+    const { topic: targetTopic, key: targetKey, valueType: targetValueType } = resolveSeriesData(s);
 
     if (targetTopic === topic) {
-      const pt = getPointFromMessage(msg, targetKey);
+      const pt = getPointFromMessage(msg, targetKey, targetValueType);
       if (pt) {
         const startOfToday = new Date().setHours(0, 0, 0, 0);
         if (pt.timestamp < startOfToday) return;

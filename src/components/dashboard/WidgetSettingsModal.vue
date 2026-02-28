@@ -108,6 +108,7 @@ watch(
 const updatePreview = () => {
   let topic = localConfig.value?.topic;
   let valueKey = localConfig.value?.settings.valueKey;
+  let isValueMode = false;
 
   // Resolve from mapping if present
   if (localConfig.value?.mappingId) {
@@ -115,6 +116,7 @@ const updatePreview = () => {
     if (mapping) {
       topic = mapping.topic;
       valueKey = mapping.valueKey;
+      isValueMode = mapping.valueType === 'value';
     }
   }
 
@@ -124,19 +126,25 @@ const updatePreview = () => {
   }
   const lastMessage = mqttStore.lastMessages[topic];
   if (lastMessage) {
-    try {
-      const payloadJson = JSON.parse(lastMessage.payload);
-      const key = valueKey || '';
-      previewValue.value = {
-        raw: payloadJson,
-        extracted: extractValue(payloadJson, key),
-      };
-    } catch (e) {
-      // Not a JSON payload, show raw
+    if (isValueMode) {
       previewValue.value = {
         raw: lastMessage.payload,
-        extracted: lastMessage.payload, // Treat raw value as extracted
+        extracted: lastMessage.payload,
       };
+    } else {
+      try {
+        const payloadJson = JSON.parse(lastMessage.payload);
+        const key = valueKey || '';
+        previewValue.value = {
+          raw: payloadJson,
+          extracted: extractValue(payloadJson, key),
+        };
+      } catch (e) {
+        previewValue.value = {
+          raw: lastMessage.payload,
+          extracted: lastMessage.payload,
+        };
+      }
     }
   } else {
     previewValue.value = null;
@@ -159,8 +167,14 @@ const INPUT_WIDGET_TYPES = ['slider', 'switch', 'multi-slider', 'multi-switch'];
 const filteredMappings = computed(() => {
   if (!localConfig.value) return [];
   const isInput = INPUT_WIDGET_TYPES.includes(localConfig.value.type);
-  return dashboardStore.dataMappings.filter(m => isInput ? m.type === 'pub' : m.type === 'sub');
+  return dashboardStore.dataMappings.filter(m => isInput ? m.type === 'pub' || m.type === 'both' : m.type === 'sub' || m.type === 'both');
 });
+
+const isMappingJsonMode = (mappingId?: string): boolean => {
+  if (!mappingId) return true;
+  const mapping = dashboardStore.getDataMappingById(mappingId);
+  return mapping?.valueType !== 'value';
+};
 
 const addSeries = () => {
   if (!localConfig.value) return;
@@ -465,6 +479,18 @@ const removeSeries = (index: number) => {
                 </span>
               </label>
             </div>
+            <div class="form-control w-full"
+              v-if="INPUT_WIDGET_TYPES.includes(localConfig.type) ? (!localConfig.mappingId || isMappingJsonMode(localConfig.mappingId)) : (isMappingJsonMode(localConfig.mappingId) && localConfig.mappingId)">
+              <label class="label">
+                <span class="label-text">Value Key{{ localConfig.mappingId ? ' (Override)' : '' }}</span>
+              </label>
+              <input v-model="localConfig.settings.valueKey" type="text"
+                class="input input-bordered font-mono"
+                :placeholder="localConfig.mappingId ? 'Optional override' : 'e.g. sensor.temperature'" />
+              <label class="label" v-if="!localConfig.mappingId">
+                <span class="label-text-alt">JSON mode: embed value at this key path when publishing</span>
+              </label>
+            </div>
           </template>
 
           <template v-if="['chart', 'plotter', 'gantt'].includes(localConfig.type)">
@@ -496,7 +522,7 @@ const removeSeries = (index: number) => {
                       </option>
                     </select>
                   </div>
-                  <div class="form-control w-full">
+                  <div class="form-control w-full" v-if="isMappingJsonMode(series.mappingId)">
                     <label class="label py-1"><span class="label-text-alt">Value Key (Override)</span></label>
                     <input v-model="series.key" type="text" class="input input-bordered input-sm font-mono"
                       placeholder="Optional override" />

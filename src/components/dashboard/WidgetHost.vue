@@ -99,7 +99,7 @@ const canExportCsv = computed(() => {
   return !singleValueTypes.includes(props.widget.type);
 });
 
-const CHART_WIDGET_TYPES = ['chart', 'plotter', 'gantt', 'scatter'];
+const CHART_WIDGET_TYPES = ['chart', 'plotter', 'gantt', 'scatter', '3d-plotter'];
 const isChartWidget = computed(() => CHART_WIDGET_TYPES.includes(props.widget.type));
 const clearToken = ref(0);
 const clearPlot = () => { clearToken.value++; };
@@ -169,13 +169,15 @@ const exportCsv = async () => {
     <div class="card-body p-2 flex-grow-0 flex-row justify-between items-start min-h-[3rem]">
       <div class="overflow-hidden">
         <h3 class="card-title text-sm truncate" :title="widget.title">{{ widget.title }}</h3>
-        <div v-if="resolvedMappingName" class="badge badge-primary badge-xs truncate max-w-full"
-          :title="resolvedTopic || ''">
-          {{ resolvedMappingName }}
-        </div>
-        <div v-else-if="resolvedTopic" class="badge badge-ghost badge-xs truncate max-w-full" :title="resolvedTopic">
-          {{ resolvedTopic }}
-        </div>
+        <template v-if="!isChartWidget">
+          <div v-if="resolvedMappingName" class="badge badge-primary badge-xs truncate max-w-full"
+            :title="resolvedTopic || ''">
+            {{ resolvedMappingName }}
+          </div>
+          <div v-else-if="resolvedTopic" class="badge badge-ghost badge-xs truncate max-w-full" :title="resolvedTopic">
+            {{ resolvedTopic }}
+          </div>
+        </template>
       </div>
 
       <div class="dropdown dropdown-end opacity-0 group-hover:opacity-100 transition-opacity">

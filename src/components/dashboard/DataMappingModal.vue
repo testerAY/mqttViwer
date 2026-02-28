@@ -73,6 +73,7 @@ const createNew = () => {
         name: 'New Mapping',
         type: 'sub',
         topic: '',
+        valueType: 'json',
         valueKey: '',
         description: ''
     };
@@ -129,9 +130,11 @@ const remove = () => {
     }
 };
 
+const isJsonMode = computed(() => localMapping.value?.valueType !== 'value');
+
 // Preview Logic
 watch(
-    () => [localMapping.value?.topic, localMapping.value?.valueKey],
+    () => [localMapping.value?.topic, localMapping.value?.valueKey, localMapping.value?.valueType],
     () => {
         updatePreview();
     },
@@ -145,18 +148,25 @@ const updatePreview = () => {
     }
     const lastMessage = mqttStore.lastMessages[localMapping.value.topic];
     if (lastMessage) {
-        try {
-            const payloadJson = JSON.parse(lastMessage.payload);
-            const valueKey = localMapping.value.valueKey || '';
-            previewValue.value = {
-                raw: payloadJson,
-                extracted: extractValue(payloadJson, valueKey),
-            };
-        } catch (e) {
+        if (localMapping.value.valueType === 'value') {
             previewValue.value = {
                 raw: lastMessage.payload,
                 extracted: lastMessage.payload,
             };
+        } else {
+            try {
+                const payloadJson = JSON.parse(lastMessage.payload);
+                const valueKey = localMapping.value.valueKey || '';
+                previewValue.value = {
+                    raw: payloadJson,
+                    extracted: extractValue(payloadJson, valueKey),
+                };
+            } catch (e) {
+                previewValue.value = {
+                    raw: lastMessage.payload,
+                    extracted: lastMessage.payload,
+                };
+            }
         }
     } else {
         previewValue.value = null;
@@ -225,6 +235,7 @@ const updatePreview = () => {
                                     <select v-model="localMapping.type" class="select select-bordered">
                                         <option value="sub">Subscribe (Read)</option>
                                         <option value="pub">Publish (Write)</option>
+                                        <option value="both">Both (Read & Write)</option>
                                     </select>
                                 </div>
                                 <div class="form-control flex-1">
@@ -238,10 +249,24 @@ const updatePreview = () => {
                             </div>
 
                             <div class="form-control w-full">
+                                <label class="label"><span class="label-text">Value Type</span></label>
+                                <div class="flex gap-4">
+                                    <label class="label cursor-pointer gap-2">
+                                        <input type="radio" v-model="localMapping.valueType" value="json" class="radio radio-sm" />
+                                        <span class="label-text">JSON</span>
+                                    </label>
+                                    <label class="label cursor-pointer gap-2">
+                                        <input type="radio" v-model="localMapping.valueType" value="value" class="radio radio-sm" />
+                                        <span class="label-text">Value</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="form-control w-full" v-if="isJsonMode">
                                 <label class="label"><span class="label-text">Value Key (JSON Path)</span></label>
                                 <input v-model="localMapping.valueKey" type="text"
                                     class="input input-bordered font-mono" placeholder="e.g. sensor.temperature" />
-                                <label class="label"><span class="label-text-alt">Leave empty for raw
+                                <label class="label"><span class="label-text-alt">Leave empty for root
                                         value</span></label>
                             </div>
 

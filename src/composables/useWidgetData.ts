@@ -21,9 +21,15 @@ export function useWidgetData(config: Ref<WidgetConfig>) {
   });
 
   const resolvedValueKey = computed(() => {
+    // settings.valueKey is an explicit override - always takes priority
+    if (config.value.settings?.valueKey) return config.value.settings.valueKey;
     if (mapping.value) return mapping.value.valueKey || '';
-    // Fallback to settings.valueKey if present (legacy)
-    return config.value.settings?.valueKey || '';
+    return '';
+  });
+
+  const resolvedValueType = computed(() => {
+    if (mapping.value) return mapping.value.valueType || 'json';
+    return 'json';
   });
 
   const currentValue = computed(() => {
@@ -31,6 +37,10 @@ export function useWidgetData(config: Ref<WidgetConfig>) {
 
     const msg = mqttStore.lastMessages[resolvedTopic.value];
     if (!msg) return null;
+
+    if (resolvedValueType.value === 'value') {
+        return msg.payload;
+    }
 
     try {
         const payloadJson = JSON.parse(msg.payload);
@@ -49,6 +59,7 @@ export function useWidgetData(config: Ref<WidgetConfig>) {
     mapping,
     topic: resolvedTopic,
     valueKey: resolvedValueKey,
+    valueType: resolvedValueType,
     value: currentValue,
     lastMessage
   };

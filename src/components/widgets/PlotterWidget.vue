@@ -52,23 +52,25 @@ const seriesDefs = computed<DataSeries[]>(() => {
 const resolveSeriesData = (s: DataSeries) => {
     let topic = s.topic;
     let key = s.key;
+    let valueType: string = 'json';
 
     if (s.mappingId) {
         const m = dashboardStore.getDataMappingById(s.mappingId);
         if (m) {
             topic = m.topic;
-            if (!key) key = m.valueKey;
+            valueType = m.valueType || 'json';
+            if (valueType === 'json' && !key) key = m.valueKey;
         }
     }
 
     if (!topic) topic = globalTopic.value;
     if (!key && topic === globalTopic.value) key = globalValueKey.value;
 
-    return { topic, key };
+    return { topic, key, valueType };
 };
 
-const getPoint = (msg: MqttMessage, key?: string): PlotPoint | null => {
-    const rawVal = extractValue(msg.payload, key);
+const getPoint = (msg: MqttMessage, key?: string, valueType?: string): PlotPoint | null => {
+    const rawVal = valueType === 'value' ? msg.payload : extractValue(msg.payload, key);
     const val = parseFloat(rawVal);
     if (isNaN(val)) return null;
     return { value: val, timestamp: msg.timestamp * 1000 };
@@ -76,10 +78,10 @@ const getPoint = (msg: MqttMessage, key?: string): PlotPoint | null => {
 
 const processMessage = (msg: MqttMessage, topic: string) => {
     seriesDefs.value.forEach((s, idx) => {
-        const { topic: targetTopic, key: targetKey } = resolveSeriesData(s);
+        const { topic: targetTopic, key: targetKey, valueType: targetValueType } = resolveSeriesData(s);
 
         if (targetTopic === topic) {
-            const pt = getPoint(msg, targetKey);
+            const pt = getPoint(msg, targetKey, targetValueType);
             if (pt) {
                 const startOfToday = new Date().setHours(0, 0, 0, 0);
                 if (pt.timestamp < startOfToday) return;

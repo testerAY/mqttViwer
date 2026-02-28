@@ -4,6 +4,7 @@ import type { WidgetConfig } from '../../types/dashboard';
 import type { MqttMessage } from '../../types/mqtt';
 import { useMqttStore } from '../../stores/useMqttStore';
 import { useWidgetData } from '../../composables/useWidgetData';
+import { extractValue, buildValue } from '../../utils/jsonExtractor';
 
 const props = defineProps<{
   config: WidgetConfig;
@@ -12,7 +13,7 @@ const props = defineProps<{
 
 const mqttStore = useMqttStore();
 
-const { topic } = useWidgetData(toRef(props, 'config'));
+const { topic, valueKey, valueType } = useWidgetData(toRef(props, 'config'));
 
 const min = computed(() => props.config.settings?.min ?? 0);
 const max = computed(() => props.config.settings?.max ?? 100);
@@ -24,17 +25,26 @@ const currentValue = ref(props.message?.payload ?? min.value);
 
 watch(() => props.message, (newMessage) => {
   if (newMessage) {
-    const numValue = parseFloat(newMessage.payload);
+    let rawVal: any = newMessage.payload;
+    if (valueType.value === 'json' && valueKey.value) {
+      rawVal = extractValue(newMessage.payload, valueKey.value);
+    }
+    const numValue = parseFloat(String(rawVal));
     if (!isNaN(numValue)) {
       currentValue.value = numValue;
     }
   }
 });
 
+const buildPayload = (val: any): string => {
+  if (valueType.value !== 'json' || !valueKey.value) return String(val);
+  return JSON.stringify(buildValue(valueKey.value, val));
+};
+
 const publishValue = async () => {
   if (!topic.value) return;
   try {
-    await mqttStore.publishMessage(topic.value, String(currentValue.value), qos.value, retain.value);
+    await mqttStore.publishMessage(topic.value, buildPayload(currentValue.value), qos.value, retain.value);
   } catch (e) {
     console.error('Failed to publish slider value:', e);
   }
