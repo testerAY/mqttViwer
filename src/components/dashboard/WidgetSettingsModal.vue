@@ -68,7 +68,7 @@ watch(() => props.open, (isOpen) => {
       windowSeconds.value = totalSeconds % 60;
 
       // Check if it's a plugin
-      const standardTypes = ['value-display', 'switch', 'chart', 'gauge', 'slider', 'gantt', 'scatter', 'plotter', 'multi-slider', 'multi-switch'];
+      const standardTypes = ['value-display', 'switch', 'chart', 'gauge', 'slider', 'gantt', 'scatter', 'plotter', 'multi-slider', 'multi-switch', '3d-plotter'];
       if (!standardTypes.includes(localConfig.value.type)) {
         currentPlugin.value = pluginStore.getPluginByTagName(localConfig.value.type);
 
@@ -281,7 +281,8 @@ const removeSeries = (index: number) => {
                 placeholder="e.g. °C, %" />
             </div>
 
-            <div class="form-control w-full" v-if="['switch', 'slider', 'multi-slider', 'multi-switch'].includes(localConfig.type)">
+            <div class="form-control w-full"
+              v-if="['switch', 'slider', 'multi-slider', 'multi-switch'].includes(localConfig.type)">
               <div class="divider">MQTT Publish Settings</div>
               <label class="label"><span class="label-text">QoS Level</span></label>
               <select v-model.number="localConfig.settings.qos" class="select select-bordered">
@@ -291,7 +292,8 @@ const removeSeries = (index: number) => {
               </select>
             </div>
 
-            <div class="form-control w-full" v-if="['switch', 'slider', 'multi-slider', 'multi-switch'].includes(localConfig.type)">
+            <div class="form-control w-full"
+              v-if="['switch', 'slider', 'multi-slider', 'multi-switch'].includes(localConfig.type)">
               <label class="label cursor-pointer justify-start gap-4">
                 <input v-model="localConfig.settings.retain" type="checkbox" class="checkbox" />
                 <span class="label-text">Retain Message</span>
@@ -383,10 +385,13 @@ const removeSeries = (index: number) => {
             </template>
 
             <template v-if="localConfig.type === 'multi-slider' || localConfig.type === 'multi-switch'">
-              <div class="divider">{{ localConfig.type === 'multi-slider' ? 'Multi Slider' : 'Multi Switch' }} Settings</div>
+              <div class="divider">{{ localConfig.type === 'multi-slider' ? 'Multi Slider' : 'Multi Switch' }} Settings
+              </div>
               <div class="alert alert-info text-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                  class="stroke-current shrink-0 w-6 h-6">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <span>キー設定はウィジェット右上の「⋮」メニュー →「Configure Keys」から行ってください。</span>
               </div>
@@ -397,11 +402,13 @@ const removeSeries = (index: number) => {
               <div class="flex gap-4">
                 <div class="form-control w-full">
                   <label class="label"><span class="label-text">ON Payload</span></label>
-                  <input v-model="localConfig.settings.onPayload" type="text" class="input input-bordered" placeholder="1" />
+                  <input v-model="localConfig.settings.onPayload" type="text" class="input input-bordered"
+                    placeholder="1" />
                 </div>
                 <div class="form-control w-full">
                   <label class="label"><span class="label-text">OFF Payload</span></label>
-                  <input v-model="localConfig.settings.offPayload" type="text" class="input input-bordered" placeholder="0" />
+                  <input v-model="localConfig.settings.offPayload" type="text" class="input input-bordered"
+                    placeholder="0" />
                 </div>
               </div>
             </template>
@@ -532,6 +539,37 @@ const removeSeries = (index: number) => {
                 <label class="label"><span class="label-text">Label/Z Key</span></label>
                 <input v-model="localConfig.settings.zKey" type="text" class="input input-bordered font-mono"
                   placeholder="value.z" />
+              </div>
+            </div>
+          </template>
+
+          <template v-if="localConfig.type === '3d-plotter'">
+            <div class="divider">3D Plotter Configuration</div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">X Key</span></label>
+                <input v-model="localConfig.settings.xKey" type="text" class="input input-bordered font-mono"
+                  placeholder="e.g. data.x" />
+              </div>
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">Y Key</span></label>
+                <input v-model="localConfig.settings.yKey" type="text" class="input input-bordered font-mono"
+                  placeholder="e.g. data.y" />
+              </div>
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">Z Key</span></label>
+                <input v-model="localConfig.settings.zKey" type="text" class="input input-bordered font-mono"
+                  placeholder="e.g. data.z" />
+              </div>
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">Label Key (Coloring)</span></label>
+                <input v-model="localConfig.settings.labelKey" type="text" class="input input-bordered font-mono"
+                  placeholder="e.g. data.type" />
+              </div>
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">Max Points (History)</span></label>
+                <input v-model.number="localConfig.settings.maxPoints" type="number" class="input input-bordered"
+                  placeholder="100" />
               </div>
             </div>
           </template>

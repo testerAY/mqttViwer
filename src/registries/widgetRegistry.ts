@@ -39,4 +39,5 @@ export function registerCoreWidgets() {
   registerWidget('gantt', defineAsyncComponent(() => import('../components/widgets/GanttWidget.vue')));
   registerWidget('multi-slider', defineAsyncComponent(() => import('../components/widgets/MultiSliderWidget.vue')));
   registerWidget('multi-switch', defineAsyncComponent(() => import('../components/widgets/MultiSwitchWidget.vue')));
+  registerWidget('3d-plotter', defineAsyncComponent(() => import('../components/widgets/3DPloterWidget.vue')));
 }

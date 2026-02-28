@@ -91,6 +91,11 @@ const builtInWidgets = [
     name: 'Multi Switch',
     icon: 'M5 8h2a2 2 0 012 2v0a2 2 0 01-2 2H5a2 2 0 01-2-2v0a2 2 0 012-2z M17 8h2a2 2 0 012 2v0a2 2 0 01-2 2h-2a2 2 0 01-2-2v0a2 2 0 012-2z M5 14h2a2 2 0 012 2v0a2 2 0 01-2 2H5a2 2 0 01-2-2v0a2 2 0 012-2z'
   },
+  {
+    id: '3d-plotter',
+    name: '3D Plotter',
+    icon: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'
+  },
 ];
 
 // 標準ウィジェットとプラグインを結合したリストを生成

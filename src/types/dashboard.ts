@@ -1,4 +1,4 @@
-export type WidgetType = 'value-display' | 'switch' | 'chart' | 'gauge' | 'slider' | 'multi-slider' | 'multi-switch' | string;
+export type WidgetType = 'value-display' | 'switch' | 'chart' | 'gauge' | 'slider' | 'multi-slider' | 'multi-switch' | '3d-plotter' | string;
 
 export interface MultiSliderItem {
   key: string;
