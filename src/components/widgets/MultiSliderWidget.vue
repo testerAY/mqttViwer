@@ -5,6 +5,7 @@ import type { MqttMessage } from '../../types/mqtt';
 import type { MultiSliderItem } from '../../types/dashboard';
 import { useMqttStore } from '../../stores/useMqttStore';
 import { useWidgetData } from '../../composables/useWidgetData';
+import { encodeProtoPayload, decodeProtoPayload } from '../../utils/protoUtils';
 
 const props = defineProps<{
   config: WidgetConfig;
@@ -12,7 +13,7 @@ const props = defineProps<{
 }>();
 
 const mqttStore = useMqttStore();
-const { topic } = useWidgetData(toRef(props, 'config'));
+const { topic, valueType, mapping } = useWidgetData(toRef(props, 'config'));
 
 const sliders = computed<MultiSliderItem[]>(() => props.config.settings?.sliders ?? []);
 const qos = computed(() => props.config.settings?.qos ?? 0);
@@ -35,9 +36,26 @@ watch(sliders, (newSliders) => {
   });
 }, { immediate: true });
 
-// 受信メッセージのJSONからvaluesを同期
+// 受信メッセージからvaluesを同期
 watch(() => props.message, (msg) => {
   if (!msg) return;
+
+  if (valueType.value === 'binary' && mapping.value?.protoSchema) {
+    if (msg.payload_encoding !== 'base64') return;
+    try {
+      const decoded = decodeProtoPayload(msg.payload, mapping.value.protoSchema);
+      sliders.value.forEach(s => {
+        if (s.key in decoded) {
+          const n = Number(decoded[s.key]);
+          if (!isNaN(n)) values[s.key] = n;
+        }
+      });
+    } catch {
+      // ignore
+    }
+    return;
+  }
+
   try {
     const parsed = JSON.parse(msg.payload);
     sliders.value.forEach(s => {
@@ -53,12 +71,21 @@ watch(() => props.message, (msg) => {
 
 const publishAll = async () => {
   if (!topic.value) return;
-  const payload: Record<string, number> = {};
-  sliders.value.forEach(s => {
-    payload[s.key] = values[s.key] ?? s.defaultValue ?? 0;
-  });
   try {
-    await mqttStore.publishMessage(topic.value, JSON.stringify(payload), qos.value, retain.value);
+    if (valueType.value === 'binary' && mapping.value?.protoSchema) {
+      const fieldValues: Record<string, number> = {};
+      sliders.value.forEach(s => {
+        fieldValues[s.key] = values[s.key] ?? s.defaultValue ?? 0;
+      });
+      const base64 = encodeProtoPayload(mapping.value.protoSchema, fieldValues);
+      await mqttStore.publishBinaryMessage(topic.value, base64, qos.value, retain.value);
+    } else {
+      const payload: Record<string, number> = {};
+      sliders.value.forEach(s => {
+        payload[s.key] = values[s.key] ?? s.defaultValue ?? 0;
+      });
+      await mqttStore.publishMessage(topic.value, JSON.stringify(payload), qos.value, retain.value);
+    }
   } catch (e) {
     console.error('Failed to publish multi-slider values:', e);
   }

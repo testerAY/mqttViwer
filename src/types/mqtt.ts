@@ -4,6 +4,7 @@ export interface MqttMessage {
     timestamp: number;
     data_type?: string;
     value_num?: number;
+    payload_encoding?: 'utf8' | 'base64';
 }
 
 export interface MqttStatus {

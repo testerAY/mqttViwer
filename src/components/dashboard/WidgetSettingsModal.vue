@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
+import type { ProtoField } from '../../types/dashboard';
 import { useDashboardStore } from '../../stores/useDashboardStore';
 import { useMqttStore } from '../../stores/useMqttStore';
 import { usePluginStore } from '../../stores/usePluginStore';
 import { extractValue } from '../../utils/jsonExtractor';
+import { getRootMessageFields, decodeProtoPayload } from '../../utils/protoUtils';
 
 const props = defineProps<{
   open: boolean;
@@ -109,6 +111,9 @@ const updatePreview = () => {
   let topic = localConfig.value?.topic;
   let valueKey = localConfig.value?.settings.valueKey;
   let isValueMode = false;
+  let isBinaryMode = false;
+  let protoSchema: any = null;
+  let fieldName = localConfig.value?.settings.fieldName || '';
 
   // Resolve from mapping if present
   if (localConfig.value?.mappingId) {
@@ -117,6 +122,8 @@ const updatePreview = () => {
       topic = mapping.topic;
       valueKey = mapping.valueKey;
       isValueMode = mapping.valueType === 'value';
+      isBinaryMode = mapping.valueType === 'binary';
+      protoSchema = mapping.protoSchema ?? null;
     }
   }
 
@@ -126,7 +133,22 @@ const updatePreview = () => {
   }
   const lastMessage = mqttStore.lastMessages[topic];
   if (lastMessage) {
-    if (isValueMode) {
+    if (isBinaryMode && protoSchema) {
+      if (lastMessage.payload_encoding === 'base64') {
+        try {
+          const decoded = decodeProtoPayload(lastMessage.payload, protoSchema);
+          const key = fieldName || valueKey || '';
+          previewValue.value = {
+            raw: decoded,
+            extracted: key ? decoded[key] : decoded,
+          };
+        } catch (e) {
+          previewValue.value = { raw: lastMessage.payload, extracted: `Decode error: ${e}` };
+        }
+      } else {
+        previewValue.value = { raw: lastMessage.payload, extracted: null };
+      }
+    } else if (isValueMode) {
       previewValue.value = {
         raw: lastMessage.payload,
         extracted: lastMessage.payload,
@@ -174,6 +196,19 @@ const isMappingJsonMode = (mappingId?: string): boolean => {
   if (!mappingId) return true;
   const mapping = dashboardStore.getDataMappingById(mappingId);
   return mapping?.valueType !== 'value';
+};
+
+const isMappingBinaryMode = (mappingId?: string): boolean => {
+  if (!mappingId) return false;
+  const mapping = dashboardStore.getDataMappingById(mappingId);
+  return mapping?.valueType === 'binary';
+};
+
+const getMappingProtoFields = (mappingId?: string): ProtoField[] => {
+  if (!mappingId) return [];
+  const mapping = dashboardStore.getDataMappingById(mappingId);
+  if (!mapping?.protoSchema) return [];
+  return getRootMessageFields(mapping.protoSchema);
 };
 
 const addSeries = () => {
@@ -480,7 +515,18 @@ const removeSeries = (index: number) => {
               </label>
             </div>
             <div class="form-control w-full"
-              v-if="INPUT_WIDGET_TYPES.includes(localConfig.type) ? (!localConfig.mappingId || isMappingJsonMode(localConfig.mappingId)) : (isMappingJsonMode(localConfig.mappingId) && localConfig.mappingId)">
+              v-if="localConfig.mappingId && isMappingBinaryMode(localConfig.mappingId)">
+              <label class="label"><span class="label-text">Field</span></label>
+              <select v-model="localConfig.settings.fieldName" class="select select-bordered font-mono">
+                <option value="">-- フィールドを選択 --</option>
+                <option v-for="f in getMappingProtoFields(localConfig.mappingId)" :key="f.name" :value="f.name">
+                  {{ f.name }} ({{ f.type }})
+                </option>
+              </select>
+              <label class="label"><span class="label-text-alt">Protobuf フィールドを選択</span></label>
+            </div>
+            <div class="form-control w-full"
+              v-else-if="INPUT_WIDGET_TYPES.includes(localConfig.type) ? (!localConfig.mappingId || (isMappingJsonMode(localConfig.mappingId) && !isMappingBinaryMode(localConfig.mappingId))) : (isMappingJsonMode(localConfig.mappingId) && !isMappingBinaryMode(localConfig.mappingId) && localConfig.mappingId)">
               <label class="label">
                 <span class="label-text">Value Key{{ localConfig.mappingId ? ' (Override)' : '' }}</span>
               </label>
@@ -522,7 +568,16 @@ const removeSeries = (index: number) => {
                       </option>
                     </select>
                   </div>
-                  <div class="form-control w-full" v-if="isMappingJsonMode(series.mappingId)">
+                  <div class="form-control w-full" v-if="isMappingBinaryMode(series.mappingId)">
+                    <label class="label py-1"><span class="label-text-alt">Field</span></label>
+                    <select v-model="series.fieldName" class="select select-bordered select-sm font-mono">
+                      <option value="">-- フィールドを選択 --</option>
+                      <option v-for="f in getMappingProtoFields(series.mappingId)" :key="f.name" :value="f.name">
+                        {{ f.name }} ({{ f.type }})
+                      </option>
+                    </select>
+                  </div>
+                  <div class="form-control w-full" v-else-if="isMappingJsonMode(series.mappingId)">
                     <label class="label py-1"><span class="label-text-alt">Value Key (Override)</span></label>
                     <input v-model="series.key" type="text" class="input input-bordered input-sm font-mono"
                       placeholder="Optional override" />

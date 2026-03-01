@@ -40,6 +40,12 @@ pub async fn init<R: Runtime>(
     {
         info!("Migration note (value_num): {}", e);
     }
+    if let Err(e) = sqlx::query("ALTER TABLE messages ADD COLUMN payload_encoding TEXT")
+        .execute(&pool)
+        .await
+    {
+        info!("Migration note (payload_encoding): {}", e);
+    }
 
     // Indices for performance
     sqlx::query("CREATE INDEX IF NOT EXISTS idx_messages_topic ON messages (topic);")

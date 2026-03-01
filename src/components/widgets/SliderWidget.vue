@@ -5,6 +5,7 @@ import type { MqttMessage } from '../../types/mqtt';
 import { useMqttStore } from '../../stores/useMqttStore';
 import { useWidgetData } from '../../composables/useWidgetData';
 import { extractValue, buildValue } from '../../utils/jsonExtractor';
+import { encodeProtoPayload, decodeProtoPayload } from '../../utils/protoUtils';
 
 const props = defineProps<{
   config: WidgetConfig;
@@ -13,7 +14,7 @@ const props = defineProps<{
 
 const mqttStore = useMqttStore();
 
-const { topic, valueKey, valueType } = useWidgetData(toRef(props, 'config'));
+const { topic, valueKey, valueType, fieldName, mapping } = useWidgetData(toRef(props, 'config'));
 
 const min = computed(() => props.config.settings?.min ?? 0);
 const max = computed(() => props.config.settings?.max ?? 100);
@@ -26,7 +27,16 @@ const currentValue = ref(props.message?.payload ?? min.value);
 watch(() => props.message, (newMessage) => {
   if (newMessage) {
     let rawVal: any = newMessage.payload;
-    if (valueType.value === 'json' && valueKey.value) {
+    if (valueType.value === 'binary' && mapping.value?.protoSchema && fieldName.value) {
+      if (newMessage.payload_encoding === 'base64') {
+        try {
+          const decoded = decodeProtoPayload(newMessage.payload, mapping.value.protoSchema);
+          rawVal = decoded[fieldName.value];
+        } catch {
+          return;
+        }
+      }
+    } else if (valueType.value === 'json' && valueKey.value) {
       rawVal = extractValue(newMessage.payload, valueKey.value);
     }
     const numValue = parseFloat(String(rawVal));
@@ -44,7 +54,12 @@ const buildPayload = (val: any): string => {
 const publishValue = async () => {
   if (!topic.value) return;
   try {
-    await mqttStore.publishMessage(topic.value, buildPayload(currentValue.value), qos.value, retain.value);
+    if (valueType.value === 'binary' && mapping.value?.protoSchema && fieldName.value) {
+      const base64 = encodeProtoPayload(mapping.value.protoSchema, { [fieldName.value]: currentValue.value });
+      await mqttStore.publishBinaryMessage(topic.value, base64, qos.value, retain.value);
+    } else {
+      await mqttStore.publishMessage(topic.value, buildPayload(currentValue.value), qos.value, retain.value);
+    }
   } catch (e) {
     console.error('Failed to publish slider value:', e);
   }

@@ -50,6 +50,26 @@ export const useMqttStore = defineStore('mqtt', () => {
         }
     };
 
+    const publishBinaryMessage = async (topic: string, base64Payload: string, qos: number = 0, retain: boolean = false) => {
+        try {
+            await invoke('publish_binary_message', { topic, base64Payload, qos, retain });
+        } catch (error) {
+            console.error('Failed to publish binary message:', error);
+            console.log(`[Simulation] Published binary to ${topic} (QoS: ${qos}, Retain: ${retain})`);
+            // Update local state for simulation
+            const msg: MqttMessage = {
+                topic,
+                payload: base64Payload,
+                timestamp: Date.now() / 1000,
+                payload_encoding: 'base64',
+            };
+            const newMap = new Map(dataMap.value);
+            newMap.set(topic, msg);
+            dataMap.value = newMap;
+            lastMessages.value[topic] = msg;
+        }
+    };
+
     const startSimulation = () => {
         console.log('Starting simulation...');
         const topics = ['sensors/temp', 'sensors/humidity', 'system/cpu'];
@@ -89,6 +109,7 @@ export const useMqttStore = defineStore('mqtt', () => {
         lastMessages,
         setupListener,
         publishMessage,
+        publishBinaryMessage,
         startSimulation,
         getHistory,
     };

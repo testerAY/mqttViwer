@@ -7,6 +7,7 @@ use sqlx::{FromRow, SqlitePool};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use tauri::Manager;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WidgetConfig {
@@ -40,6 +41,8 @@ pub struct DataMapping {
     #[serde(rename = "valueKey")]
     value_key: Option<String>,
     description: Option<String>,
+    #[serde(rename = "protoSchema", default)]
+    proto_schema: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -156,6 +159,7 @@ mod tests {
                 value_type: None,
                 value_key: None,
                 description: None,
+                proto_schema: None,
             }],
         };
 
@@ -200,6 +204,31 @@ pub async fn publish_message(
 }
 
 #[tauri::command]
+pub async fn publish_binary_message(
+    client: tauri::State<'_, AsyncClient>,
+    topic: String,
+    base64_payload: String,
+    qos: u8,
+    retain: bool,
+) -> Result<(), String> {
+    use base64::Engine as _;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(&base64_payload)
+        .map_err(|e| format!("Base64 decode error: {}", e))?;
+
+    let qos_level = match qos {
+        1 => QoS::AtLeastOnce,
+        2 => QoS::ExactlyOnce,
+        _ => QoS::AtMostOnce,
+    };
+
+    client
+        .publish(topic, qos_level, retain, bytes)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn get_history(
     pool: tauri::State<'_, Option<SqlitePool>>,
     topic_filter: Option<String>,
@@ -214,7 +243,7 @@ pub async fn get_history(
     let filter = topic_filter.unwrap_or("%".to_string());
 
     let messages = sqlx::query_as::<_, MqttMessage>(
-        "SELECT topic, payload, timestamp, data_type, value_num FROM messages WHERE topic LIKE ? ORDER BY timestamp DESC LIMIT ?"
+        "SELECT topic, payload, timestamp, data_type, value_num, payload_encoding FROM messages WHERE topic LIKE ? ORDER BY timestamp DESC LIMIT ?"
     )
     .bind(filter)
     .bind(limit)
@@ -236,7 +265,7 @@ pub async fn export_widget_data_as_csv(
     };
 
     let messages = sqlx::query_as::<_, MqttMessage>(
-        "SELECT topic, payload, timestamp, data_type, value_num FROM messages WHERE topic = ? ORDER BY timestamp ASC"
+        "SELECT topic, payload, timestamp, data_type, value_num, payload_encoding FROM messages WHERE topic = ? ORDER BY timestamp ASC"
     )
     .bind(&topic)
     .fetch_all(p)
@@ -333,6 +362,30 @@ pub async fn delete_messages(
     };
 
     Ok(rows_affected)
+}
+
+#[tauri::command]
+pub async fn save_proto_file(
+    app: tauri::AppHandle,
+    filename: String,
+    content: String,
+) -> Result<String, String> {
+    if filename.contains('/') || filename.contains('\\') || filename.contains("..") {
+        return Err("Invalid filename".to_string());
+    }
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let protos_dir = app_data_dir.join("protos");
+    if !protos_dir.exists() {
+        fs::create_dir_all(&protos_dir).map_err(|e| e.to_string())?;
+    }
+    let clean_name = if filename.ends_with(".proto") {
+        filename
+    } else {
+        format!("{}.proto", filename)
+    };
+    let file_path = protos_dir.join(&clean_name);
+    fs::write(&file_path, content).map_err(|e| e.to_string())?;
+    Ok(file_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]

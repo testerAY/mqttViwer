@@ -6,6 +6,7 @@ import { useMqttStore } from '../../stores/useMqttStore';
 import { useToastStore } from '../../stores/useToastStore';
 import { useWidgetData } from '../../composables/useWidgetData';
 import { extractValue, buildValue } from '../../utils/jsonExtractor';
+import { encodeProtoPayload } from '../../utils/protoUtils';
 
 const props = defineProps<{
   config: WidgetConfig;
@@ -16,7 +17,7 @@ const mqttStore = useMqttStore();
 const toastStore = useToastStore();
 const isPublishing = ref(false);
 
-const { topic, valueKey, valueType } = useWidgetData(toRef(props, 'config'));
+const { topic, valueKey, valueType, fieldName, mapping } = useWidgetData(toRef(props, 'config'));
 
 const onPayload = computed(() => props.config.settings?.onPayload ?? '1');
 const offPayload = computed(() => props.config.settings?.offPayload ?? '0');
@@ -42,7 +43,12 @@ const toggle = async () => {
   const rawPayload = isOn.value ? offPayload.value : onPayload.value;
   isPublishing.value = true;
   try {
-    await mqttStore.publishMessage(topic.value, buildPayload(rawPayload), qos.value, retain.value);
+    if (valueType.value === 'binary' && mapping.value?.protoSchema && fieldName.value) {
+      const base64 = encodeProtoPayload(mapping.value.protoSchema, { [fieldName.value]: rawPayload });
+      await mqttStore.publishBinaryMessage(topic.value, base64, qos.value, retain.value);
+    } else {
+      await mqttStore.publishMessage(topic.value, buildPayload(rawPayload), qos.value, retain.value);
+    }
   } catch (e) {
     console.error('Failed to toggle switch:', e);
     toastStore.addToast('Failed to publish message', 'error');

@@ -5,6 +5,7 @@ import { useDashboardStore } from '../../stores/useDashboardStore';
 import type { WidgetConfig, DataSeries } from '../../types/dashboard';
 import type { MqttMessage } from '../../types/mqtt';
 import { extractValue } from '../../utils/jsonExtractor';
+import { decodeProtoPayload } from '../../utils/protoUtils';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { LineChart, BarChart } from 'echarts/charts';
@@ -69,7 +70,9 @@ const seriesDefs = computed<DataSeries[]>(() => {
 const resolveSeriesData = (s: DataSeries) => {
   let topic = s.topic;
   let key = s.key;
+  let fieldName = s.fieldName;
   let valueType: string = 'json';
+  let mappingProtoSchema = undefined as any;
 
   if (s.mappingId) {
     const m = dashboardStore.getDataMappingById(s.mappingId);
@@ -77,13 +80,14 @@ const resolveSeriesData = (s: DataSeries) => {
       topic = m.topic;
       valueType = m.valueType || 'json';
       if (valueType === 'json' && !key) key = m.valueKey;
+      if (valueType === 'binary') mappingProtoSchema = m.protoSchema;
     }
   }
 
   if (!topic) topic = globalTopic.value;
   if (!key && topic === globalTopic.value) key = globalValueKey.value;
 
-  return { topic, key, valueType };
+  return { topic, key, fieldName, valueType, mappingProtoSchema };
 };
 
 const getPointFromMessage = (msg: MqttMessage, valueKey?: string, valueType?: string): ChartPoint | null => {
@@ -102,10 +106,19 @@ const getPointFromMessage = (msg: MqttMessage, valueKey?: string, valueType?: st
 
 const processMessage = (msg: MqttMessage, topic: string) => {
   seriesDefs.value.forEach((s, idx) => {
-    const { topic: targetTopic, key: targetKey, valueType: targetValueType } = resolveSeriesData(s);
+    const { topic: targetTopic, key: targetKey, fieldName: targetFieldName, valueType: targetValueType, mappingProtoSchema } = resolveSeriesData(s);
 
     if (targetTopic === topic) {
-      const pt = getPointFromMessage(msg, targetKey, targetValueType);
+      let pt: ChartPoint | null = null;
+      if (targetValueType === 'binary' && mappingProtoSchema && targetFieldName && msg.payload_encoding === 'base64') {
+        try {
+          const decoded = decodeProtoPayload(msg.payload, mappingProtoSchema);
+          const val = parseFloat(String(decoded[targetFieldName]));
+          if (!isNaN(val)) pt = { value: val, timestamp: msg.timestamp * 1000 };
+        } catch { /* ignore */ }
+      } else {
+        pt = getPointFromMessage(msg, targetKey, targetValueType);
+      }
       if (pt) {
         const startOfToday = new Date().setHours(0, 0, 0, 0);
         if (pt.timestamp < startOfToday) return;

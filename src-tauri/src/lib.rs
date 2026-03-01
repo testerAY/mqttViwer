@@ -76,6 +76,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             commands::publish_message,
+            commands::publish_binary_message,
             commands::get_history,
             commands::save_layout,
             commands::load_layout,
@@ -86,6 +87,7 @@ pub fn run() {
             commands::get_distinct_topics,
             commands::get_message_counts,
             commands::delete_messages,
+            commands::save_proto_file,
             plugins::get_plugin_list,
             plugins::load_plugin_file
         ])

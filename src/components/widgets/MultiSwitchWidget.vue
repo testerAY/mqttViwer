@@ -6,6 +6,7 @@ import type { MultiSwitchItem } from '../../types/dashboard';
 import { useMqttStore } from '../../stores/useMqttStore';
 import { useToastStore } from '../../stores/useToastStore';
 import { useWidgetData } from '../../composables/useWidgetData';
+import { encodeProtoPayload, decodeProtoPayload } from '../../utils/protoUtils';
 
 const props = defineProps<{
   config: WidgetConfig;
@@ -14,7 +15,7 @@ const props = defineProps<{
 
 const mqttStore = useMqttStore();
 const toastStore = useToastStore();
-const { topic } = useWidgetData(toRef(props, 'config'));
+const { topic, valueType, mapping } = useWidgetData(toRef(props, 'config'));
 
 const switches = computed<MultiSwitchItem[]>(() => props.config.settings?.switches ?? []);
 const qos = computed(() => props.config.settings?.qos ?? 0);
@@ -28,6 +29,19 @@ const displayStates = computed<Record<string, boolean>>(() => {
   switches.value.forEach(s => { result[s.key] = false; });
 
   if (!props.message) return result;
+
+  if (valueType.value === 'binary' && mapping.value?.protoSchema) {
+    if (props.message.payload_encoding !== 'base64') return result;
+    try {
+      const decoded = decodeProtoPayload(props.message.payload, mapping.value.protoSchema);
+      switches.value.forEach(s => {
+        if (s.key in decoded) result[s.key] = Boolean(decoded[s.key]);
+      });
+    } catch {
+      // ignore
+    }
+    return result;
+  }
 
   try {
     const parsed = JSON.parse(props.message.payload);
@@ -45,16 +59,25 @@ const displayStates = computed<Record<string, boolean>>(() => {
 const toggle = async (key: string) => {
   if (!topic.value || isPublishing.value) return;
 
-  // 現在の表示状態を元に新しいペイロードを構築（指定キーだけ反転）
-  const payload: Record<string, number> = {};
-  switches.value.forEach(s => {
-    const current = displayStates.value[s.key] ?? false;
-    payload[s.key] = (s.key === key ? !current : current) ? 1 : 0;
-  });
-
   isPublishing.value = true;
   try {
-    await mqttStore.publishMessage(topic.value, JSON.stringify(payload), qos.value, retain.value);
+    if (valueType.value === 'binary' && mapping.value?.protoSchema) {
+      const fieldValues: Record<string, boolean> = {};
+      switches.value.forEach(s => {
+        const current = displayStates.value[s.key] ?? false;
+        fieldValues[s.key] = s.key === key ? !current : current;
+      });
+      const base64 = encodeProtoPayload(mapping.value.protoSchema, fieldValues);
+      await mqttStore.publishBinaryMessage(topic.value, base64, qos.value, retain.value);
+    } else {
+      // 現在の表示状態を元に新しいペイロードを構築（指定キーだけ反転）
+      const payload: Record<string, number> = {};
+      switches.value.forEach(s => {
+        const current = displayStates.value[s.key] ?? false;
+        payload[s.key] = (s.key === key ? !current : current) ? 1 : 0;
+      });
+      await mqttStore.publishMessage(topic.value, JSON.stringify(payload), qos.value, retain.value);
+    }
   } catch (e) {
     console.error('Failed to publish multi-switch values:', e);
     toastStore.addToast('Failed to publish message', 'error');

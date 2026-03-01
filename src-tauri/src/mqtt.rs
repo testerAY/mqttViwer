@@ -1,4 +1,5 @@
 use crate::config::AppConfig;
+use base64::Engine;
 use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqlitePool;
@@ -16,6 +17,8 @@ pub struct MqttMessage {
     pub timestamp: i64,
     pub data_type: Option<String>,
     pub value_num: Option<f64>,
+    #[sqlx(default)]
+    pub payload_encoding: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -42,16 +45,21 @@ async fn write_batch_to_db(pool: &SqlitePool, messages: &[MqttMessage]) -> Resul
     let mut tx = pool.begin().await?;
 
     for msg in messages {
-        let (data_type, value_num) = analyze_payload(&msg.payload);
+        let (data_type, value_num) = if msg.payload_encoding.as_deref() == Some("base64") {
+            (Some("binary".to_string()), None)
+        } else {
+            analyze_payload(&msg.payload)
+        };
 
         sqlx::query(
-            "INSERT INTO messages (topic, payload, timestamp, data_type, value_num) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO messages (topic, payload, timestamp, data_type, value_num, payload_encoding) VALUES (?, ?, ?, ?, ?, ?)",
         )
         .bind(&msg.topic)
         .bind(&msg.payload)
         .bind(msg.timestamp)
         .bind(data_type)
         .bind(value_num)
+        .bind(&msg.payload_encoding)
         .execute(&mut *tx)
         .await?;
     }
@@ -199,12 +207,24 @@ pub fn init<R: tauri::Runtime>(
         loop {
             match eventloop.poll().await {
                 Ok(Event::Incoming(Packet::Publish(publish))) => {
+                    let (payload_str, payload_encoding) =
+                        match String::from_utf8(publish.payload.to_vec()) {
+                            Ok(s) if s.chars().all(|c| !c.is_control() || matches!(c, '\n' | '\r' | '\t')) => {
+                                (s, "utf8".to_string())
+                            }
+                            _ => (
+                                base64::engine::general_purpose::STANDARD
+                                    .encode(&publish.payload),
+                                "base64".to_string(),
+                            ),
+                        };
                     let message = MqttMessage {
                         topic: publish.topic.to_string(),
-                        payload: String::from_utf8_lossy(&publish.payload).to_string(),
+                        payload: payload_str,
                         timestamp: chrono::Utc::now().timestamp(),
                         data_type: None, // Filled in DB worker
                         value_num: None, // Filled in DB worker
+                        payload_encoding: Some(payload_encoding),
                     };
                     info!("Received = {:?}", message);
 

@@ -2,7 +2,6 @@
 import { computed, ref, watch, toRef } from 'vue';
 import type { WidgetConfig } from '../../types/dashboard';
 import type { MqttMessage } from '../../types/mqtt';
-import { extractValue } from '../../utils/jsonExtractor';
 import { useWidgetData } from '../../composables/useWidgetData';
 
 const props = defineProps<{
@@ -10,31 +9,15 @@ const props = defineProps<{
   message: MqttMessage | undefined;
 }>();
 
-const { valueKey } = useWidgetData(toRef(props, 'config'));
+const { value: dataValue, lastMessage } = useWidgetData(toRef(props, 'config'));
 
 const lastValue = ref<string | number | null>(null);
 const lastTimestamp = ref<number | null>(null);
 
-const parsePayload = (payload: string): string | number => {
-  try {
-    const json = JSON.parse(payload);
-    const val = extractValue(json, valueKey.value);
-    if (val === undefined) return 'N/A';
-    if (typeof val === 'object') return JSON.stringify(val);
-    return val;
-  } catch (e) {
-    if (!valueKey.value) return payload;
-    return 'N/A (Parse Error)';
-  }
-};
-
-watch(() => props.message, (msg) => {
-  if (msg) {
-    const parsed = parsePayload(msg.payload);
-    if (parsed !== 'N/A' && parsed !== 'N/A (Parse Error)') {
-      lastValue.value = parsed;
-      lastTimestamp.value = msg.timestamp;
-    }
+watch(dataValue, (newVal) => {
+  if (newVal !== null && newVal !== undefined) {
+    lastValue.value = typeof newVal === 'object' ? JSON.stringify(newVal) : newVal;
+    lastTimestamp.value = lastMessage.value?.timestamp ?? null;
   }
 }, { immediate: true });
 

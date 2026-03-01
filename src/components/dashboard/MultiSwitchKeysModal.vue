@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import type { MultiSwitchItem } from '../../types/dashboard';
+import { ref, computed, watch } from 'vue';
+import type { MultiSwitchItem, ProtoField } from '../../types/dashboard';
 import { useDashboardStore } from '../../stores/useDashboardStore';
+import { getRootMessageFields } from '../../utils/protoUtils';
 
 const props = defineProps<{
   open: boolean;
@@ -15,6 +16,17 @@ const emit = defineEmits<{
 const dashboardStore = useDashboardStore();
 const localSwitches = ref<MultiSwitchItem[]>([]);
 const validationError = ref('');
+
+const widgetMapping = computed(() => {
+  const item = dashboardStore.layout.find(i => i.widget.id === props.widgetId);
+  if (!item?.widget.mappingId) return null;
+  return dashboardStore.getDataMappingById(item.widget.mappingId);
+});
+const isBinaryMode = computed(() => widgetMapping.value?.valueType === 'binary');
+const protoFields = computed<ProtoField[]>(() => {
+  if (!isBinaryMode.value || !widgetMapping.value?.protoSchema) return [];
+  return getRootMessageFields(widgetMapping.value.protoSchema);
+});
 
 watch(() => props.open, (isOpen) => {
   if (isOpen && props.widgetId) {
@@ -84,7 +96,7 @@ const handleSave = () => {
         <table class="table table-sm">
           <thead>
             <tr>
-              <th>Key</th>
+              <th>Key / Field</th>
               <th>Label</th>
               <th></th>
             </tr>
@@ -92,7 +104,14 @@ const handleSave = () => {
           <tbody>
             <tr v-for="(sw, idx) in localSwitches" :key="idx">
               <td>
-                <input
+                <select v-if="isBinaryMode" v-model="sw.key"
+                  class="select select-bordered select-sm w-36 font-mono">
+                  <option value="">-- Field --</option>
+                  <option v-for="f in protoFields" :key="f.name" :value="f.name">
+                    {{ f.name }} ({{ f.type }})
+                  </option>
+                </select>
+                <input v-else
                   v-model="sw.key"
                   type="text"
                   class="input input-bordered input-sm w-32 font-mono"

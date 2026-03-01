@@ -16,11 +16,39 @@ export interface MultiSwitchItem {
 
 export interface DataSeries {
   topic: string;
-  mappingId?: string; // New field
+  mappingId?: string;
   key?: string;
+  fieldName?: string;
   name?: string;
   color?: string;
   yAxisIndex?: number;
+}
+
+export type ProtoFieldType =
+  | 'double' | 'float'
+  | 'int32' | 'int64' | 'uint32' | 'uint64'
+  | 'sint32' | 'sint64'
+  | 'fixed32' | 'fixed64' | 'sfixed32' | 'sfixed64'
+  | 'bool' | 'string' | 'bytes';
+
+export type ProtoFieldRule = 'required' | 'optional' | 'repeated';
+
+export interface ProtoField {
+  id: number;
+  name: string;
+  type: ProtoFieldType;
+  rule: ProtoFieldRule;
+}
+
+export interface ProtoMessage {
+  name: string;
+  fields: ProtoField[];
+}
+
+export interface ProtoSchema {
+  packageName?: string;
+  rootMessage: string;
+  messages: ProtoMessage[];
 }
 
 export interface DataMapping {
@@ -28,9 +56,10 @@ export interface DataMapping {
   name: string;
   type: 'sub' | 'pub' | 'both';
   topic: string;
-  valueType?: 'value' | 'json';
+  valueType?: 'value' | 'json' | 'binary';
   valueKey?: string;
   description?: string;
+  protoSchema?: ProtoSchema;
 }
 
 export interface WidgetConfig {
