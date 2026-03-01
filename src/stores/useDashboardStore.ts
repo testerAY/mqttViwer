@@ -240,6 +240,25 @@ export const useDashboardStore = defineStore('dashboard', () => {
         title = 'Scatter';
         settings = {};
         break;
+      case 'rtsp-camera':
+        title = 'Camera';
+        width = 6;
+        height = 6;
+        topic = undefined as any;
+        settings = {
+          rtspUrl: '',
+          mode: 'passthrough',
+          width: 640,
+          height: 480,
+          fps: 15,
+          bitrate: '500k',
+          quality: 5,
+          rtspTransport: 'tcp',
+          reconnectDelaySecs: 3,
+          showControls: true,
+          autoStart: false,
+        };
+        break;
     }
 
     const newItem: DashboardItem = {

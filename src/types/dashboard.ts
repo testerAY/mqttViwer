@@ -1,4 +1,18 @@
-export type WidgetType = 'value-display' | 'switch' | 'chart' | 'gauge' | 'slider' | 'multi-slider' | 'multi-switch' | '3d-plotter' | string;
+export type WidgetType = 'value-display' | 'switch' | 'chart' | 'gauge' | 'slider' | 'multi-slider' | 'multi-switch' | '3d-plotter' | 'rtsp-camera' | string;
+
+export interface RtspWidgetSettings {
+  rtspUrl: string;
+  mode: 'passthrough' | 'relay';
+  width: number;
+  height: number;
+  fps: number;
+  bitrate: string;
+  quality: number;
+  rtspTransport: 'tcp' | 'udp';
+  reconnectDelaySecs: number;
+  showControls: boolean;
+  autoStart: boolean;
+}
 
 export interface MultiSliderItem {
   key: string;

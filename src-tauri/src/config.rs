@@ -54,6 +54,30 @@ impl Default for RetentionConfig {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RtspConfig {
+    pub ffmpeg_path: Option<String>,
+    #[serde(default = "default_rtsp_server_port")]
+    pub server_port: u16,
+    pub recordings_dir: Option<String>,
+    pub snapshots_dir: Option<String>,
+}
+
+fn default_rtsp_server_port() -> u16 {
+    18800
+}
+
+impl Default for RtspConfig {
+    fn default() -> Self {
+        Self {
+            ffmpeg_path: None,
+            server_port: default_rtsp_server_port(),
+            recordings_dir: None,
+            snapshots_dir: None,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AppConfig {
     pub last_layout_path: Option<String>,
@@ -63,6 +87,8 @@ pub struct AppConfig {
     pub theme: String, // "light", "dark", "system"
     #[serde(default)]
     pub retention: RetentionConfig,
+    #[serde(default)]
+    pub rtsp: RtspConfig,
 }
 
 pub fn get_config_path(app: &AppHandle) -> Result<PathBuf, String> {

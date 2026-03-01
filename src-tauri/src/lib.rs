@@ -17,6 +17,8 @@ mod config;
 mod database;
 mod mqtt;
 mod plugins;
+mod rtsp;
+mod rtsp_server;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -68,6 +70,19 @@ pub fn run() {
 
             let handle = app.handle().clone();
             mqtt::init(&handle, &config).expect("Failed to initialize MQTT client");
+
+            // Initialize RTSP manager and MJPEG server
+            let rtsp_manager = rtsp::RtspManager::new();
+            app.manage(rtsp_manager);
+
+            let rtsp_server_state = rtsp_server::RtspServerState::new();
+            app.manage(rtsp_server_state.clone());
+
+            let rtsp_port = config.rtsp.server_port;
+            tauri::async_runtime::spawn(async move {
+                rtsp_server::start(rtsp_server_state, rtsp_port).await;
+            });
+
             Ok(())
         })
         .register_uri_scheme_protocol("plugin", plugins::plugin_protocol_handler)
@@ -89,7 +104,15 @@ pub fn run() {
             commands::delete_messages,
             commands::save_proto_file,
             plugins::get_plugin_list,
-            plugins::load_plugin_file
+            plugins::load_plugin_file,
+            commands::rtsp_start_stream,
+            commands::rtsp_stop_stream,
+            commands::rtsp_start_recording,
+            commands::rtsp_stop_recording,
+            commands::rtsp_take_snapshot,
+            commands::rtsp_get_stream_status,
+            commands::rtsp_list_streams,
+            commands::rtsp_check_ffmpeg,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

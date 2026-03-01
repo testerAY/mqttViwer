@@ -70,7 +70,7 @@ watch(() => props.open, (isOpen) => {
       windowSeconds.value = totalSeconds % 60;
 
       // Check if it's a plugin
-      const standardTypes = ['value-display', 'switch', 'chart', 'gauge', 'slider', 'gantt', 'scatter', 'plotter', 'multi-slider', 'multi-switch', '3d-plotter'];
+      const standardTypes = ['value-display', 'switch', 'chart', 'gauge', 'slider', 'gantt', 'scatter', 'plotter', 'multi-slider', 'multi-switch', '3d-plotter', 'rtsp-camera'];
       if (!standardTypes.includes(localConfig.value.type)) {
         currentPlugin.value = pluginStore.getPluginByTagName(localConfig.value.type);
 
@@ -494,7 +494,7 @@ const removeSeries = (index: number) => {
           </div>
 
           <!-- Single Mapping Selector (value-display, gauge, scatter, slider, switch) -->
-          <template v-if="!['chart', 'plotter', 'gantt'].includes(localConfig.type)">
+          <template v-if="!['chart', 'plotter', 'gantt', 'rtsp-camera'].includes(localConfig.type)">
             <div class="form-control w-full">
               <label class="label">
                 <span class="label-text">Data Mapping</span>
@@ -652,6 +652,77 @@ const removeSeries = (index: number) => {
                 <input v-model.number="localConfig.settings.maxPoints" type="number" class="input input-bordered"
                   placeholder="100" />
               </div>
+            </div>
+          </template>
+
+          <template v-if="localConfig.type === 'rtsp-camera'">
+            <div class="divider">RTSP Camera Settings</div>
+            <div class="form-control w-full">
+              <label class="label"><span class="label-text">RTSP URL</span></label>
+              <input v-model="localConfig.settings.rtspUrl" type="text" class="input input-bordered font-mono"
+                placeholder="rtsp://192.168.1.100/stream" />
+            </div>
+            <div class="form-control w-full">
+              <label class="label"><span class="label-text">Mode</span></label>
+              <select v-model="localConfig.settings.mode" class="select select-bordered">
+                <option value="passthrough">Passthrough (Direct MJPEG)</option>
+                <option value="relay">Relay (Re-encode with bandwidth control)</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-3 gap-4">
+              <div class="form-control">
+                <label class="label"><span class="label-text">Width</span></label>
+                <input v-model.number="localConfig.settings.width" type="number" class="input input-bordered"
+                  placeholder="640" />
+              </div>
+              <div class="form-control">
+                <label class="label"><span class="label-text">Height</span></label>
+                <input v-model.number="localConfig.settings.height" type="number" class="input input-bordered"
+                  placeholder="480" />
+              </div>
+              <div class="form-control">
+                <label class="label"><span class="label-text">FPS</span></label>
+                <input v-model.number="localConfig.settings.fps" type="number" class="input input-bordered"
+                  placeholder="15" min="1" max="60" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="form-control">
+                <label class="label"><span class="label-text">Bitrate</span></label>
+                <input v-model="localConfig.settings.bitrate" type="text" class="input input-bordered"
+                  placeholder="500k" />
+              </div>
+              <div class="form-control">
+                <label class="label"><span class="label-text">Quality (1=best, 31=worst)</span></label>
+                <input v-model.number="localConfig.settings.quality" type="number" class="input input-bordered"
+                  min="1" max="31" placeholder="5" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="form-control">
+                <label class="label"><span class="label-text">RTSP Transport</span></label>
+                <select v-model="localConfig.settings.rtspTransport" class="select select-bordered">
+                  <option value="tcp">TCP (reliable)</option>
+                  <option value="udp">UDP (lower latency)</option>
+                </select>
+              </div>
+              <div class="form-control">
+                <label class="label"><span class="label-text">Reconnect Delay (sec)</span></label>
+                <input v-model.number="localConfig.settings.reconnectDelaySecs" type="number"
+                  class="input input-bordered" min="1" max="30" placeholder="3" />
+              </div>
+            </div>
+            <div class="form-control">
+              <label class="label cursor-pointer justify-start gap-4">
+                <input v-model="localConfig.settings.showControls" type="checkbox" class="checkbox" />
+                <span class="label-text">Show Controls Bar (Snapshot/Record)</span>
+              </label>
+            </div>
+            <div class="form-control">
+              <label class="label cursor-pointer justify-start gap-4">
+                <input v-model="localConfig.settings.autoStart" type="checkbox" class="checkbox" />
+                <span class="label-text">Auto-connect on widget load</span>
+              </label>
             </div>
           </template>
 

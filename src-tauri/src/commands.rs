@@ -1,5 +1,7 @@
 use crate::config;
 use crate::mqtt::MqttMessage;
+use crate::rtsp::{RtspManager, RtspStreamInfo, RtspStreamStatus, StreamParams};
+use crate::rtsp_server::RtspServerState;
 use crate::LayoutFileLock;
 use rumqttc::{AsyncClient, QoS};
 use serde::{Deserialize, Serialize};
@@ -405,4 +407,172 @@ pub async fn get_distinct_topics(
 
     let topics = rows.into_iter().map(|row| row.topic).collect();
     Ok(topics)
+}
+
+// ==================== RTSP Commands ====================
+
+#[tauri::command]
+pub async fn rtsp_start_stream(
+    app: tauri::AppHandle,
+    manager: tauri::State<'_, RtspManager>,
+    server: tauri::State<'_, RtspServerState>,
+    widget_id: String,
+    rtsp_url: String,
+    mode: String,
+    width: u32,
+    height: u32,
+    fps: u8,
+    bitrate: String,
+    quality: u8,
+    rtsp_transport: String,
+) -> Result<String, String> {
+    let config = config::load_config(&app)?;
+    let ffmpeg_path = manager
+        .find_ffmpeg(config.rtsp.ffmpeg_path.as_deref(), &app)
+        .await?;
+
+    let params = StreamParams {
+        rtsp_url,
+        mode,
+        width,
+        height,
+        fps,
+        bitrate,
+        quality,
+        rtsp_transport,
+    };
+
+    manager
+        .start_stream(
+            &widget_id,
+            params,
+            &ffmpeg_path,
+            &server,
+            config.rtsp.server_port,
+        )
+        .await
+}
+
+#[tauri::command]
+pub async fn rtsp_stop_stream(
+    manager: tauri::State<'_, RtspManager>,
+    server: tauri::State<'_, RtspServerState>,
+    widget_id: String,
+) -> Result<(), String> {
+    manager.stop_stream(&widget_id, &server).await
+}
+
+#[tauri::command]
+pub async fn rtsp_start_recording(
+    app: tauri::AppHandle,
+    manager: tauri::State<'_, RtspManager>,
+    widget_id: String,
+    output_path: Option<String>,
+) -> Result<String, String> {
+    let config = config::load_config(&app)?;
+    let ffmpeg_path = manager
+        .find_ffmpeg(config.rtsp.ffmpeg_path.as_deref(), &app)
+        .await?;
+
+    let path = match output_path {
+        Some(p) => PathBuf::from(p),
+        None => {
+            let dir = match config.rtsp.recordings_dir {
+                Some(d) => PathBuf::from(d),
+                None => {
+                    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+                    app_data.join("recordings")
+                }
+            };
+            if !dir.exists() {
+                fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            }
+            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+            dir.join(format!("{}_{}.mp4", widget_id, timestamp))
+        }
+    };
+
+    manager
+        .start_recording(&widget_id, path, &ffmpeg_path)
+        .await
+}
+
+#[tauri::command]
+pub async fn rtsp_stop_recording(
+    manager: tauri::State<'_, RtspManager>,
+    widget_id: String,
+) -> Result<(), String> {
+    manager.stop_recording(&widget_id).await
+}
+
+#[tauri::command]
+pub async fn rtsp_take_snapshot(
+    app: tauri::AppHandle,
+    manager: tauri::State<'_, RtspManager>,
+    widget_id: String,
+    rtsp_url: String,
+    rtsp_transport: String,
+    output_path: Option<String>,
+) -> Result<String, String> {
+    let config = config::load_config(&app)?;
+    let ffmpeg_path = manager
+        .find_ffmpeg(config.rtsp.ffmpeg_path.as_deref(), &app)
+        .await?;
+
+    let path = match output_path {
+        Some(p) => PathBuf::from(p),
+        None => {
+            let dir = match config.rtsp.snapshots_dir {
+                Some(d) => PathBuf::from(d),
+                None => {
+                    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+                    app_data.join("snapshots")
+                }
+            };
+            if !dir.exists() {
+                fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            }
+            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+            dir.join(format!("{}_{}.jpg", widget_id, timestamp))
+        }
+    };
+
+    crate::rtsp::take_snapshot(&ffmpeg_path, &rtsp_url, &rtsp_transport, &path).await?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn rtsp_get_stream_status(
+    manager: tauri::State<'_, RtspManager>,
+    widget_id: String,
+) -> Result<Option<RtspStreamStatus>, String> {
+    Ok(manager.get_status(&widget_id).await)
+}
+
+#[tauri::command]
+pub async fn rtsp_list_streams(
+    manager: tauri::State<'_, RtspManager>,
+) -> Result<Vec<RtspStreamInfo>, String> {
+    Ok(manager.list_streams().await)
+}
+
+#[tauri::command]
+pub async fn rtsp_check_ffmpeg(
+    app: tauri::AppHandle,
+    manager: tauri::State<'_, RtspManager>,
+) -> Result<String, String> {
+    let config = config::load_config(&app)?;
+    let ffmpeg_path = manager
+        .find_ffmpeg(config.rtsp.ffmpeg_path.as_deref(), &app)
+        .await?;
+
+    let output = tokio::process::Command::new(&ffmpeg_path)
+        .arg("-version")
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run ffmpeg: {}", e))?;
+
+    let version = String::from_utf8_lossy(&output.stdout);
+    let first_line = version.lines().next().unwrap_or("unknown version");
+    Ok(first_line.to_string())
 }
