@@ -58,14 +58,14 @@ const removeSlider = (index: number) => {
 const validate = (): boolean => {
   for (const s of localSliders.value) {
     if (!s.key.trim()) {
-      validationError.value = 'キーが空のスライダーがあります。';
+      validationError.value = 'Some sliders have an empty key.';
       return false;
     }
   }
   const keys = localSliders.value.map(s => s.key.trim());
   const unique = new Set(keys);
   if (unique.size !== keys.length) {
-    validationError.value = 'キーが重複しています。';
+    validationError.value = 'Duplicate keys are not allowed.';
     return false;
   }
   validationError.value = '';
@@ -135,7 +135,7 @@ const handleSave = () => {
                   v-model="slider.label"
                   type="text"
                   class="input input-bordered input-sm w-32"
-                  placeholder="X軸"
+                  placeholder="e.g. x_axis"
                 />
               </td>
               <td>
@@ -178,7 +178,7 @@ const handleSave = () => {
       </div>
 
       <div v-else class="text-center text-sm opacity-60 p-8 border border-dashed rounded-md">
-        スライダーが未定義です。「+ Add Slider」で追加してください。
+        No sliders defined. Click "+ Add Slider" to add one.
       </div>
 
       <div v-if="validationError" class="alert alert-error mt-4 text-sm py-2">

@@ -95,7 +95,7 @@ const publishAll = async () => {
 <template>
   <div class="flex-1 flex flex-col gap-3 p-4 w-full h-full overflow-y-auto">
     <div v-if="sliders.length === 0" class="flex items-center justify-center h-full opacity-50 text-sm text-center">
-      キーが未設定です。<br />右上メニューの「Configure Keys」から設定してください。
+      No keys configured.<br />Use "Configure Keys" from the ⋮ menu (top-right).
     </div>
     <div v-for="slider in sliders" :key="slider.key" class="flex flex-col gap-1">
       <div class="flex justify-between items-center text-sm">

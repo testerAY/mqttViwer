@@ -101,6 +101,11 @@ const builtInWidgets = [
     name: 'RTSP Camera',
     icon: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z'
   },
+  {
+    id: 'attitude',
+    name: 'Attitude',
+    icon: 'M12 2a10 10 0 100 20A10 10 0 0012 2zM2 12h20M12 2v20'
+  },
 ];
 
 // 標準ウィジェットとプラグインを結合したリストを生成

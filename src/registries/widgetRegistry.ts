@@ -41,4 +41,5 @@ export function registerCoreWidgets() {
   registerWidget('multi-switch', defineAsyncComponent(() => import('../components/widgets/MultiSwitchWidget.vue')));
   registerWidget('3d-plotter', defineAsyncComponent(() => import('../components/widgets/3DPloterWidget.vue')));
   registerWidget('rtsp-camera', defineAsyncComponent(() => import('../components/widgets/RtspCameraWidget.vue')));
+  registerWidget('attitude', defineAsyncComponent(() => import('../components/widgets/AttitudeWidget.vue')));
 }

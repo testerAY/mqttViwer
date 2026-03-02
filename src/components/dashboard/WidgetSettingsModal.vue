@@ -70,7 +70,7 @@ watch(() => props.open, (isOpen) => {
       windowSeconds.value = totalSeconds % 60;
 
       // Check if it's a plugin
-      const standardTypes = ['value-display', 'switch', 'chart', 'gauge', 'slider', 'gantt', 'scatter', 'plotter', 'multi-slider', 'multi-switch', '3d-plotter', 'rtsp-camera'];
+      const standardTypes = ['value-display', 'switch', 'chart', 'gauge', 'slider', 'gantt', 'scatter', 'plotter', 'multi-slider', 'multi-switch', '3d-plotter', 'rtsp-camera', 'attitude'];
       if (!standardTypes.includes(localConfig.value.type)) {
         currentPlugin.value = pluginStore.getPluginByTagName(localConfig.value.type);
 
@@ -401,6 +401,24 @@ const removeSeries = (index: number) => {
             </template>
 
             <!-- Type Specific -->
+            <template v-if="localConfig.type === 'value-display'">
+              <div class="divider">Threshold Alerts</div>
+              <div class="flex gap-4">
+                <div class="form-control w-full">
+                  <label class="label"><span class="label-text">Min Threshold</span></label>
+                  <input v-model.number="localConfig.settings.minThreshold" type="number"
+                    class="input input-bordered" placeholder="e.g. 10" />
+                  <label class="label"><span class="label-text-alt">Alert if value drops below this</span></label>
+                </div>
+                <div class="form-control w-full">
+                  <label class="label"><span class="label-text">Max Threshold</span></label>
+                  <input v-model.number="localConfig.settings.maxThreshold" type="number"
+                    class="input input-bordered" placeholder="e.g. 90" />
+                  <label class="label"><span class="label-text-alt">Alert if value exceeds this</span></label>
+                </div>
+              </div>
+            </template>
+
             <template v-if="localConfig.type === 'gauge'">
               <div class="divider">Gauge Settings</div>
               <div class="flex gap-4">
@@ -413,6 +431,30 @@ const removeSeries = (index: number) => {
                   <input v-model.number="localConfig.settings.max" type="number" class="input input-bordered" />
                 </div>
               </div>
+            </template>
+
+            <template v-if="localConfig.type === 'attitude'">
+              <div class="divider">Attitude Settings</div>
+              <div class="grid grid-cols-3 gap-4">
+                <div class="form-control w-full">
+                  <label class="label"><span class="label-text">Roll Key</span></label>
+                  <input v-model="localConfig.settings.rollKey" type="text"
+                    class="input input-bordered font-mono" placeholder="roll" />
+                </div>
+                <div class="form-control w-full">
+                  <label class="label"><span class="label-text">Pitch Key</span></label>
+                  <input v-model="localConfig.settings.pitchKey" type="text"
+                    class="input input-bordered font-mono" placeholder="pitch" />
+                </div>
+                <div class="form-control w-full">
+                  <label class="label"><span class="label-text">Yaw Key</span></label>
+                  <input v-model="localConfig.settings.yawKey" type="text"
+                    class="input input-bordered font-mono" placeholder="yaw" />
+                </div>
+              </div>
+              <label class="label">
+                <span class="label-text-alt">JSON keys for roll/pitch/yaw values in degrees (e.g. <code>attitude.roll</code>)</span>
+              </label>
             </template>
 
             <template v-if="localConfig.type === 'slider'">
@@ -442,7 +484,7 @@ const removeSeries = (index: number) => {
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
-                <span>キー設定はウィジェット右上の「⋮」メニュー →「Configure Keys」から行ってください。</span>
+                <span>Configure keys from the ⋮ menu at the top-right of the widget → "Configure Keys".</span>
               </div>
             </template>
 
@@ -518,12 +560,12 @@ const removeSeries = (index: number) => {
               v-if="localConfig.mappingId && isMappingBinaryMode(localConfig.mappingId)">
               <label class="label"><span class="label-text">Field</span></label>
               <select v-model="localConfig.settings.fieldName" class="select select-bordered font-mono">
-                <option value="">-- フィールドを選択 --</option>
+                <option value="">-- Select Field --</option>
                 <option v-for="f in getMappingProtoFields(localConfig.mappingId)" :key="f.name" :value="f.name">
                   {{ f.name }} ({{ f.type }})
                 </option>
               </select>
-              <label class="label"><span class="label-text-alt">Protobuf フィールドを選択</span></label>
+              <label class="label"><span class="label-text-alt">Select Protobuf field</span></label>
             </div>
             <div class="form-control w-full"
               v-else-if="INPUT_WIDGET_TYPES.includes(localConfig.type) ? (!localConfig.mappingId || (isMappingJsonMode(localConfig.mappingId) && !isMappingBinaryMode(localConfig.mappingId))) : (isMappingJsonMode(localConfig.mappingId) && !isMappingBinaryMode(localConfig.mappingId) && localConfig.mappingId)">
@@ -571,7 +613,7 @@ const removeSeries = (index: number) => {
                   <div class="form-control w-full" v-if="isMappingBinaryMode(series.mappingId)">
                     <label class="label py-1"><span class="label-text-alt">Field</span></label>
                     <select v-model="series.fieldName" class="select select-bordered select-sm font-mono">
-                      <option value="">-- フィールドを選択 --</option>
+                      <option value="">-- Select Field --</option>
                       <option v-for="f in getMappingProtoFields(series.mappingId)" :key="f.name" :value="f.name">
                         {{ f.name }} ({{ f.type }})
                       </option>

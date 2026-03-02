@@ -51,14 +51,14 @@ const removeSwitch = (index: number) => {
 const validate = (): boolean => {
   for (const s of localSwitches.value) {
     if (!s.key.trim()) {
-      validationError.value = 'キーが空のスイッチがあります。';
+      validationError.value = 'Some switches have an empty key.';
       return false;
     }
   }
   const keys = localSwitches.value.map(s => s.key.trim());
   const unique = new Set(keys);
   if (unique.size !== keys.length) {
-    validationError.value = 'キーが重複しています。';
+    validationError.value = 'Duplicate keys are not allowed.';
     return false;
   }
   validationError.value = '';
@@ -137,7 +137,7 @@ const handleSave = () => {
       </div>
 
       <div v-else class="text-center text-sm opacity-60 p-8 border border-dashed rounded-md">
-        スイッチが未定義です。「+ Add Switch」で追加してください。
+        No switches defined. Click "+ Add Switch" to add one.
       </div>
 
       <div v-if="validationError" class="alert alert-error mt-4 text-sm py-2">

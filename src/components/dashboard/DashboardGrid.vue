@@ -58,11 +58,12 @@ const handleDrop = async (event: DragEvent) => {
       console.log(`Drop coordinates: client(${event.clientX}, ${event.clientY}) -> local(${x}, ${y}) -> grid(${gridX}, ${gridY})`);
 
       // ★ ウィジェットタイプごとの幅を定義（Storeの設定と合わせる）
-      let widgetWidth = 4; // デフォルト
+      let widgetWidth = 4; // default
       if (type === 'chart') {
         widgetWidth = 8;
+      } else if (type === 'attitude') {
+        widgetWidth = 3; // square-ish
       }
-      // switchなどは4でOK、必要ならcase追加
 
       // ★ はみ出さない最大X座標を計算 (12 - 幅)
       const maxX = colNum - widgetWidth;

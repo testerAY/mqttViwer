@@ -240,6 +240,12 @@ export const useDashboardStore = defineStore('dashboard', () => {
         title = 'Scatter';
         settings = {};
         break;
+      case 'attitude':
+        title = 'Attitude';
+        width = 3;
+        height = 5;
+        settings = { rollKey: 'roll', pitchKey: 'pitch', yawKey: 'yaw' };
+        break;
       case 'rtsp-camera':
         title = 'Camera';
         width = 6;
