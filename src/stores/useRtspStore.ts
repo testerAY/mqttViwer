@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { reactive } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import type { RtspWidgetSettings } from '../types/dashboard';
 
 export interface RtspStreamState {
@@ -12,8 +13,19 @@ export interface RtspStreamState {
   error: string | null;
 }
 
+export interface MjpegServerStatus {
+  running: boolean;
+  port: number;
+  error: string | null;
+}
+
 export const useRtspStore = defineStore('rtsp', () => {
   const streams = reactive<Record<string, RtspStreamState>>({});
+  const serverStatus = reactive<MjpegServerStatus>({
+    running: false,
+    port: 0,
+    error: null,
+  });
 
   function getOrCreate(widgetId: string): RtspStreamState {
     if (!streams[widgetId]) {
@@ -37,14 +49,16 @@ export const useRtspStore = defineStore('rtsp', () => {
     try {
       const url = await invoke<string>('rtsp_start_stream', {
         widgetId,
-        rtspUrl: settings.rtspUrl,
-        mode: settings.mode,
-        width: settings.width,
-        height: settings.height,
-        fps: settings.fps,
-        bitrate: settings.bitrate,
-        quality: settings.quality,
-        rtspTransport: settings.rtspTransport,
+        params: {
+          rtspUrl: settings.rtspUrl,
+          mode: settings.mode,
+          width: settings.width,
+          height: settings.height,
+          fps: settings.fps,
+          bitrate: settings.bitrate,
+          quality: settings.quality,
+          rtspTransport: settings.rtspTransport,
+        }
       });
       state.url = url;
       state.isStreaming = true;
@@ -52,6 +66,8 @@ export const useRtspStore = defineStore('rtsp', () => {
       return url;
     } catch (e: any) {
       state.error = String(e);
+      state.url = null;
+      state.isStreaming = false;
       state.isConnecting = false;
       throw e;
     }
@@ -124,8 +140,31 @@ export const useRtspStore = defineStore('rtsp', () => {
     delete streams[widgetId];
   }
 
+  // Listen for MJPEG server status events
+  listen<MjpegServerStatus>('mjpeg-server-status', (event) => {
+    console.log('[RTSP] MJPEG server status:', event.payload);
+    serverStatus.running = event.payload.running;
+    serverStatus.port = event.payload.port;
+    serverStatus.error = event.payload.error;
+  });
+
+  // Listen for backend event when ffmpeg process dies unexpectedly
+  listen<string>('rtsp-stream-died', (event) => {
+    const widgetId = event.payload;
+    const state = streams[widgetId];
+    if (state) {
+      state.url = null;
+      state.isStreaming = false;
+      state.isConnecting = false;
+      state.isRecording = false;
+      state.recordingPath = null;
+      state.error = 'Stream disconnected (ffmpeg exited)';
+    }
+  });
+
   return {
     streams,
+    serverStatus,
     startStream,
     stopStream,
     startRecording,

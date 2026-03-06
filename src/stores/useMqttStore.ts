@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, shallowRef } from 'vue';
+import { ref, shallowRef, triggerRef } from 'vue';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -10,15 +10,43 @@ export const useMqttStore = defineStore('mqtt', () => {
     const isConnected = ref(false);
     const lastMessages = ref<Record<string, MqttMessage>>({});
 
+    // B1: Connection quality tracking
+    const messageRate = ref(0);        // msgs/sec
+    const lastMessageTime = ref(0);    // timestamp ms
+    const connectionStale = ref(false); // true if no message for N seconds
+    let _msgCount = 0;
+    const STALE_THRESHOLD_MS = 5000; // 5 seconds without message = stale
+
+    const _startConnectionTracking = () => {
+        // Calculate message rate every second
+        setInterval(() => {
+            messageRate.value = _msgCount;
+            _msgCount = 0;
+        }, 1000);
+        // Check for stale connection every second
+        setInterval(() => {
+            if (lastMessageTime.value > 0 && isConnected.value) {
+                connectionStale.value = (Date.now() - lastMessageTime.value) > STALE_THRESHOLD_MS;
+            } else {
+                connectionStale.value = false;
+            }
+        }, 1000);
+    };
+
     const setupListener = async () => {
+        _startConnectionTracking();
+
         await listen<MqttMessage>('mqtt-message', (event) => {
             const newMessage = event.payload;
-            
-            // For reactivity in DashboardGrid
-            const newMap = new Map(dataMap.value);
-            newMap.set(newMessage.topic, newMessage);
-            dataMap.value = newMap;
-            
+
+            // B1: Track reception
+            _msgCount++;
+            lastMessageTime.value = Date.now();
+
+            // Mutate existing Map and trigger shallow reactivity (avoids full Map copy)
+            dataMap.value.set(newMessage.topic, newMessage);
+            triggerRef(dataMap);
+
             // For preview in settings
             lastMessages.value[newMessage.topic] = newMessage;
         });
@@ -43,9 +71,8 @@ export const useMqttStore = defineStore('mqtt', () => {
                 payload,
                 timestamp: Date.now() / 1000
             };
-            const newMap = new Map(dataMap.value);
-            newMap.set(topic, msg);
-            dataMap.value = newMap;
+            dataMap.value.set(topic, msg);
+            triggerRef(dataMap);
             lastMessages.value[topic] = msg;
         }
     };
@@ -63,9 +90,8 @@ export const useMqttStore = defineStore('mqtt', () => {
                 timestamp: Date.now() / 1000,
                 payload_encoding: 'base64',
             };
-            const newMap = new Map(dataMap.value);
-            newMap.set(topic, msg);
-            dataMap.value = newMap;
+            dataMap.value.set(topic, msg);
+            triggerRef(dataMap);
             lastMessages.value[topic] = msg;
         }
     };
@@ -87,9 +113,10 @@ export const useMqttStore = defineStore('mqtt', () => {
             };
             
             console.log(`[Simulation] Update ${topic}: ${msg.payload}`);
-            const newMap = new Map(dataMap.value);
-            newMap.set(topic, msg);
-            dataMap.value = newMap;
+            _msgCount++;
+            lastMessageTime.value = Date.now();
+            dataMap.value.set(topic, msg);
+            triggerRef(dataMap);
             lastMessages.value[topic] = msg;
         }, 1000);
     };
@@ -107,6 +134,10 @@ export const useMqttStore = defineStore('mqtt', () => {
         dataMap,
         isConnected,
         lastMessages,
+        // B1: Connection quality
+        messageRate,
+        lastMessageTime,
+        connectionStale,
         setupListener,
         publishMessage,
         publishBinaryMessage,

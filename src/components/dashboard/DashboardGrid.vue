@@ -3,14 +3,15 @@ import { ref } from 'vue';
 import { GridLayout, GridItem } from 'grid-layout-plus';
 import { storeToRefs } from 'pinia';
 import { useDashboardStore } from '../../stores/useDashboardStore';
+import { useToastStore } from '../../stores/useToastStore';
 import type { WidgetConfig } from '../../types/dashboard';
 import WidgetHost from './WidgetHost.vue';
 import WidgetSettingsModal from './WidgetSettingsModal.vue';
-import { ask } from '@tauri-apps/plugin-dialog';
 
 const dashboardStore = useDashboardStore();
+const toastStore = useToastStore();
 // isDraggingNewWidget を確実に取得
-const { layout, isEditing, isDraggingNewWidget } = storeToRefs(dashboardStore);
+const { layout, isEditing, isDraggingNewWidget, lastRemovedWidget } = storeToRefs(dashboardStore);
 
 const settingsModalOpen = ref(false);
 const currentWidgetId = ref<string | null>(null);
@@ -86,14 +87,12 @@ const handleDrop = async (event: DragEvent) => {
   }
 };
 
-const handleRemoveWidget = async (id: string) => {
-  const yes = await ask('Are you sure you want to remove this widget?',{
-    title: 'Confirm Removal',
-    kind: 'warning'
-  });
-  if (yes) {
-    dashboardStore.removeWidget(id);
-  }
+// B7: Remove widget with undo toast instead of blocking dialog
+const handleRemoveWidget = (id: string) => {
+  const item = layout.value.find(i => i.widget.id === id);
+  const name = item?.widget.title || 'Widget';
+  dashboardStore.removeWidget(id);
+  toastStore.addToast(`"${name}" removed. Click Undo in the corner to restore.`, 'info', 8000);
 };
 
 // ドラッグがコンテナに入った時
@@ -161,6 +160,16 @@ const handleDragLeave = (event: DragEvent) => {
       <div class="drop-message">
         <span class="text-xl font-bold">+ Drop Widget Here</span>
       </div>
+    </div>
+
+    <!-- B7: Undo remove button -->
+    <div v-if="lastRemovedWidget" class="fixed bottom-20 right-6 z-50">
+      <button class="btn btn-warning btn-sm gap-2 shadow-lg" @click="dashboardStore.undoRemoveWidget()">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 015 5v2M3 10l4-4m-4 4l4 4" />
+        </svg>
+        Undo Remove
+      </button>
     </div>
 
     <WidgetSettingsModal

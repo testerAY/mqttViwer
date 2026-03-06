@@ -406,14 +406,14 @@ const removeSeries = (index: number) => {
               <div class="flex gap-4">
                 <div class="form-control w-full">
                   <label class="label"><span class="label-text">Min Threshold</span></label>
-                  <input v-model.number="localConfig.settings.minThreshold" type="number"
-                    class="input input-bordered" placeholder="e.g. 10" />
+                  <input v-model.number="localConfig.settings.minThreshold" type="number" class="input input-bordered"
+                    placeholder="e.g. 10" />
                   <label class="label"><span class="label-text-alt">Alert if value drops below this</span></label>
                 </div>
                 <div class="form-control w-full">
                   <label class="label"><span class="label-text">Max Threshold</span></label>
-                  <input v-model.number="localConfig.settings.maxThreshold" type="number"
-                    class="input input-bordered" placeholder="e.g. 90" />
+                  <input v-model.number="localConfig.settings.maxThreshold" type="number" class="input input-bordered"
+                    placeholder="e.g. 90" />
                   <label class="label"><span class="label-text-alt">Alert if value exceeds this</span></label>
                 </div>
               </div>
@@ -438,22 +438,23 @@ const removeSeries = (index: number) => {
               <div class="grid grid-cols-3 gap-4">
                 <div class="form-control w-full">
                   <label class="label"><span class="label-text">Roll Key</span></label>
-                  <input v-model="localConfig.settings.rollKey" type="text"
-                    class="input input-bordered font-mono" placeholder="roll" />
+                  <input v-model="localConfig.settings.rollKey" type="text" class="input input-bordered font-mono"
+                    placeholder="roll" />
                 </div>
                 <div class="form-control w-full">
                   <label class="label"><span class="label-text">Pitch Key</span></label>
-                  <input v-model="localConfig.settings.pitchKey" type="text"
-                    class="input input-bordered font-mono" placeholder="pitch" />
+                  <input v-model="localConfig.settings.pitchKey" type="text" class="input input-bordered font-mono"
+                    placeholder="pitch" />
                 </div>
                 <div class="form-control w-full">
                   <label class="label"><span class="label-text">Yaw Key</span></label>
-                  <input v-model="localConfig.settings.yawKey" type="text"
-                    class="input input-bordered font-mono" placeholder="yaw" />
+                  <input v-model="localConfig.settings.yawKey" type="text" class="input input-bordered font-mono"
+                    placeholder="yaw" />
                 </div>
               </div>
               <label class="label">
-                <span class="label-text-alt">JSON keys for roll/pitch/yaw values in degrees (e.g. <code>attitude.roll</code>)</span>
+                <span class="label-text-alt">JSON keys for roll/pitch/yaw values in degrees (e.g.
+                  <code>attitude.roll</code>)</span>
               </label>
             </template>
 
@@ -556,8 +557,7 @@ const removeSeries = (index: number) => {
                 </span>
               </label>
             </div>
-            <div class="form-control w-full"
-              v-if="localConfig.mappingId && isMappingBinaryMode(localConfig.mappingId)">
+            <div class="form-control w-full" v-if="localConfig.mappingId && isMappingBinaryMode(localConfig.mappingId)">
               <label class="label"><span class="label-text">Field</span></label>
               <select v-model="localConfig.settings.fieldName" class="select select-bordered font-mono">
                 <option value="">-- Select Field --</option>
@@ -572,8 +572,7 @@ const removeSeries = (index: number) => {
               <label class="label">
                 <span class="label-text">Value Key{{ localConfig.mappingId ? ' (Override)' : '' }}</span>
               </label>
-              <input v-model="localConfig.settings.valueKey" type="text"
-                class="input input-bordered font-mono"
+              <input v-model="localConfig.settings.valueKey" type="text" class="input input-bordered font-mono"
                 :placeholder="localConfig.mappingId ? 'Optional override' : 'e.g. sensor.temperature'" />
               <label class="label" v-if="!localConfig.mappingId">
                 <span class="label-text-alt">JSON mode: embed value at this key path when publishing</span>
@@ -700,15 +699,41 @@ const removeSeries = (index: number) => {
           <template v-if="localConfig.type === 'rtsp-camera'">
             <div class="divider">RTSP Camera Settings</div>
             <div class="form-control w-full">
-              <label class="label"><span class="label-text">RTSP URL</span></label>
-              <input v-model="localConfig.settings.rtspUrl" type="text" class="input input-bordered font-mono"
-                placeholder="rtsp://192.168.1.100/stream" />
+              <label class="label"><span class="label-text">Source Mode</span></label>
+              <select v-model="localConfig.settings.sourceMode" class="select select-bordered">
+                <option value="pull">Pull (connect to external RTSP camera)</option>
+                <option value="receive">Receive (accept incoming RTSP push stream)</option>
+              </select>
             </div>
+            <template v-if="localConfig.settings.sourceMode !== 'receive'">
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">RTSP URL</span></label>
+                <input v-model="localConfig.settings.rtspUrl" type="text" class="input input-bordered font-mono"
+                  placeholder="rtsp://192.168.1.100/stream" />
+              </div>
+            </template>
+            <template v-else>
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">Stream Path</span></label>
+                <input v-model="localConfig.settings.receivePath" type="text" class="input input-bordered font-mono"
+                  placeholder="mystream" />
+              </div>
+              <div class="form-control w-full">
+                <label class="label"><span class="label-text">Listen Port</span></label>
+                <input v-model.number="localConfig.settings.receivePushPort" type="number" class="input input-bordered"
+                  placeholder="18802" />
+                <label class="label">
+                  <span class="label-text-alt text-info">
+                    Sender should push to: rtsp://THIS_PC_IP:{{ localConfig.settings.receivePushPort || 18802 }}/{{ localConfig.settings.receivePath || 'mystream' }}
+                  </span>
+                </label>
+              </div>
+            </template>
             <div class="form-control w-full">
-              <label class="label"><span class="label-text">Mode</span></label>
+              <label class="label"><span class="label-text">Processing Mode</span></label>
               <select v-model="localConfig.settings.mode" class="select select-bordered">
-                <option value="passthrough">Passthrough (Direct MJPEG)</option>
-                <option value="relay">Relay (Re-encode with bandwidth control)</option>
+                <option value="push">Push (Send frames to frontend directly)</option>
+                <option value="pull">Pull (Frontend fetches frames periodically)</option>
               </select>
             </div>
             <div class="grid grid-cols-3 gap-4">
@@ -736,8 +761,8 @@ const removeSeries = (index: number) => {
               </div>
               <div class="form-control">
                 <label class="label"><span class="label-text">Quality (1=best, 31=worst)</span></label>
-                <input v-model.number="localConfig.settings.quality" type="number" class="input input-bordered"
-                  min="1" max="31" placeholder="5" />
+                <input v-model.number="localConfig.settings.quality" type="number" class="input input-bordered" min="1"
+                  max="31" placeholder="5" />
               </div>
             </div>
             <div class="grid grid-cols-2 gap-4">

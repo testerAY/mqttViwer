@@ -191,8 +191,30 @@ export const useDashboardStore = defineStore('dashboard', () => {
     }
   };
 
+  // B7: Undo support for widget removal
+  const lastRemovedWidget = ref<DashboardItem | null>(null);
+  let _undoTimer: ReturnType<typeof setTimeout> | null = null;
+  const UNDO_TIMEOUT_MS = 8000;
+
   const removeWidget = (id: string) => {
+    const item = layout.value.find(item => item.widget.id === id);
+    if (item) {
+      lastRemovedWidget.value = JSON.parse(JSON.stringify(item));
+      if (_undoTimer) clearTimeout(_undoTimer);
+      _undoTimer = setTimeout(() => {
+        lastRemovedWidget.value = null;
+        _undoTimer = null;
+      }, UNDO_TIMEOUT_MS);
+    }
     layout.value = layout.value.filter(item => item.widget.id !== id);
+  };
+
+  const undoRemoveWidget = () => {
+    if (lastRemovedWidget.value) {
+      layout.value = [...layout.value, lastRemovedWidget.value];
+      lastRemovedWidget.value = null;
+      if (_undoTimer) { clearTimeout(_undoTimer); _undoTimer = null; }
+    }
   };
 
   const addWidget = async (type: WidgetConfig['type'], x: number, y: number) => {
@@ -333,6 +355,8 @@ export const useDashboardStore = defineStore('dashboard', () => {
     updateWidget,
     updateLayoutItem,
     removeWidget,
+    undoRemoveWidget,
+    lastRemovedWidget,
     addWidget,
     addDataMapping,
     updateDataMapping,

@@ -49,16 +49,33 @@ const alertState = computed<'ok' | 'min' | 'max'>(() => {
   return 'ok';
 });
 
-// Fire toast when threshold is first crossed
+// Fire toast when threshold is first crossed (debounced to avoid spam)
+let alertDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+const ALERT_DEBOUNCE_MS = 2000;
+
 watch(alertState, (newState, oldState) => {
   if (newState === oldState) return;
-  const title = props.config.title || 'Widget';
-  if (newState === 'min') {
-    toastStore.addToast(`⚠ ${title}: ${displayValue.value} is below minimum (${minThreshold.value})`, 'error', 5000);
-  } else if (newState === 'max') {
-    toastStore.addToast(`⚠ ${title}: ${displayValue.value} exceeds maximum (${maxThreshold.value})`, 'error', 5000);
-  }
   prevAlertState.value = newState;
+
+  if (newState === 'ok') {
+    // Clear pending alert if returning to ok
+    if (alertDebounceTimer) { clearTimeout(alertDebounceTimer); alertDebounceTimer = null; }
+    return;
+  }
+
+  // Debounce alert toasts to prevent rapid fire near threshold boundary
+  if (alertDebounceTimer) clearTimeout(alertDebounceTimer);
+  alertDebounceTimer = setTimeout(() => {
+    alertDebounceTimer = null;
+    // Re-check state after debounce (may have recovered)
+    if (alertState.value === 'ok') return;
+    const title = props.config.title || 'Widget';
+    if (alertState.value === 'min') {
+      toastStore.addToast(`${title}: ${displayValue.value} is below minimum (${minThreshold.value})`, 'error', 5000);
+    } else if (alertState.value === 'max') {
+      toastStore.addToast(`${title}: ${displayValue.value} exceeds maximum (${maxThreshold.value})`, 'error', 5000);
+    }
+  }, ALERT_DEBOUNCE_MS);
 });
 </script>
 

@@ -2,7 +2,7 @@ export type WidgetType = 'value-display' | 'switch' | 'chart' | 'gauge' | 'slide
 
 export interface RtspWidgetSettings {
   rtspUrl: string;
-  mode: 'passthrough' | 'relay';
+  mode: 'passthrough' | 'relay' | 'push' | 'pull';
   width: number;
   height: number;
   fps: number;
@@ -12,6 +12,9 @@ export interface RtspWidgetSettings {
   reconnectDelaySecs: number;
   showControls: boolean;
   autoStart: boolean;
+  sourceMode: 'pull' | 'receive';
+  receivePath: string;
+  receivePushPort?: number;
 }
 
 export interface MultiSliderItem {

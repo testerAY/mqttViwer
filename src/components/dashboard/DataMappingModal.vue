@@ -13,7 +13,7 @@ const props = defineProps<{
     open: boolean;
 }>();
 
-const emit = defineEmits<{
+defineEmits<{
     (e: 'close'): void;
 }>();
 
@@ -496,16 +496,14 @@ const updatePreview = () => {
                             </div>
 
                             <!-- Binary / Protobuf Schema Editor -->
-                            <div v-if="isBinaryMode"
-                                class="border border-base-300 rounded-box p-4 space-y-4">
+                            <div v-if="isBinaryMode" class="border border-base-300 rounded-box p-4 space-y-4">
                                 <div class="flex items-center justify-between">
                                     <h3 class="font-bold text-base">Protobuf Schema</h3>
                                     <div class="flex gap-2">
                                         <button class="btn btn-xs btn-outline" @click="importProtoFile">
                                             Import .proto
                                         </button>
-                                        <button class="btn btn-xs btn-outline btn-success"
-                                            @click="exportProtoFile">
+                                        <button class="btn btn-xs btn-outline btn-success" @click="exportProtoFile">
                                             <span v-if="protoSaveStatus === 'saving'">Saving...</span>
                                             <span v-else-if="protoSaveStatus === 'saved'">✓ Saved</span>
                                             <span v-else>Export .proto</span>
@@ -513,8 +511,7 @@ const updatePreview = () => {
                                     </div>
                                 </div>
 
-                                <div v-if="protoSaveStatus === 'error'"
-                                    class="alert alert-error p-2 text-xs">
+                                <div v-if="protoSaveStatus === 'error'" class="alert alert-error p-2 text-xs">
                                     {{ protoSaveError }}
                                 </div>
 
@@ -523,8 +520,7 @@ const updatePreview = () => {
                                     <label class="label"><span class="label-text text-xs">Package Name
                                             (optional)</span></label>
                                     <input v-model="localMapping.protoSchema!.packageName" type="text"
-                                        class="input input-bordered input-sm font-mono"
-                                        placeholder="e.g. sensors" />
+                                        class="input input-bordered input-sm font-mono" placeholder="e.g. sensors" />
                                 </div>
 
                                 <!-- Message tabs -->
@@ -536,8 +532,7 @@ const updatePreview = () => {
                                             :class="selectedMessageIndex === idx ? 'btn-primary' : 'btn-outline'"
                                             @click="selectedMessageIndex = idx; editingFieldIndex = null; editingField = null">
                                             {{ msg.name }}
-                                            <span
-                                                v-if="localMapping.protoSchema?.rootMessage === msg.name"
+                                            <span v-if="localMapping.protoSchema?.rootMessage === msg.name"
                                                 class="badge badge-xs badge-accent ml-1">root</span>
                                         </button>
                                         <button class="btn btn-xs btn-ghost" @click="addMessage">
@@ -550,8 +545,8 @@ const updatePreview = () => {
                                 <template v-if="currentMessage">
                                     <div class="flex gap-2 items-end">
                                         <div class="form-control flex-1">
-                                            <label class="label"><span
-                                                    class="label-text text-xs">Message Name</span></label>
+                                            <label class="label"><span class="label-text text-xs">Message
+                                                    Name</span></label>
                                             <input v-model="currentMessage.name" type="text"
                                                 class="input input-bordered input-sm font-mono" />
                                         </div>
@@ -581,13 +576,11 @@ const updatePreview = () => {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                <tr v-for="(field, fIdx) in currentMessage.fields"
-                                                    :key="fIdx">
-                                                    <template
-                                                        v-if="editingFieldIndex === fIdx && editingField">
+                                                <tr v-for="(field, fIdx) in currentMessage.fields" :key="fIdx">
+                                                    <template v-if="editingFieldIndex === fIdx && editingField">
                                                         <td>
-                                                            <input v-model.number="editingField.id"
-                                                                type="number" min="1"
+                                                            <input v-model.number="editingField.id" type="number"
+                                                                min="1"
                                                                 class="input input-xs input-bordered w-16 font-mono" />
                                                         </td>
                                                         <td>
@@ -597,15 +590,15 @@ const updatePreview = () => {
                                                         <td>
                                                             <select v-model="editingField.type"
                                                                 class="select select-xs select-bordered font-mono">
-                                                                <option v-for="t in PROTO_FIELD_TYPES"
-                                                                    :key="t" :value="t">{{ t }}</option>
+                                                                <option v-for="t in PROTO_FIELD_TYPES" :key="t"
+                                                                    :value="t">{{ t }}</option>
                                                             </select>
                                                         </td>
                                                         <td>
                                                             <select v-model="editingField.rule"
                                                                 class="select select-xs select-bordered">
-                                                                <option v-for="r in PROTO_FIELD_RULES"
-                                                                    :key="r" :value="r">{{ r }}</option>
+                                                                <option v-for="r in PROTO_FIELD_RULES" :key="r"
+                                                                    :value="r">{{ r }}</option>
                                                             </select>
                                                         </td>
                                                         <td>
@@ -628,8 +621,7 @@ const updatePreview = () => {
                                                                 <button class="btn btn-xs btn-ghost"
                                                                     @click="startEditField(fIdx)"
                                                                     :disabled="editingFieldIndex !== null">Edit</button>
-                                                                <button
-                                                                    class="btn btn-xs btn-ghost text-error"
+                                                                <button class="btn btn-xs btn-ghost text-error"
                                                                     @click="removeField(fIdx)"
                                                                     :disabled="editingFieldIndex !== null">Del</button>
                                                             </div>
@@ -637,8 +629,7 @@ const updatePreview = () => {
                                                     </template>
                                                 </tr>
                                                 <tr v-if="currentMessage.fields.length === 0">
-                                                    <td colspan="5"
-                                                        class="text-center opacity-50 py-3 text-sm">
+                                                    <td colspan="5" class="text-center opacity-50 py-3 text-sm">
                                                         No fields defined. Click "+ Add Field" to add one.
                                                     </td>
                                                 </tr>
@@ -669,8 +660,7 @@ const updatePreview = () => {
                                 </div>
 
                                 <!-- Validation errors -->
-                                <div v-if="protoValidationErrors.length > 0"
-                                    class="alert alert-error p-2">
+                                <div v-if="protoValidationErrors.length > 0" class="alert alert-error p-2">
                                     <ul class="list-disc list-inside text-xs space-y-1">
                                         <li v-for="err in protoValidationErrors" :key="err">{{ err }}
                                         </li>
@@ -679,15 +669,12 @@ const updatePreview = () => {
 
                                 <!-- Decode Preview -->
                                 <div class="divider text-xs my-1">Decode Preview</div>
-                                <div v-if="protoDecodePreview"
-                                    class="p-3 bg-base-200 rounded-box space-y-2">
-                                    <div v-if="localMapping.valueKey"
-                                        class="flex justify-between items-center">
+                                <div v-if="protoDecodePreview" class="p-3 bg-base-200 rounded-box space-y-2">
+                                    <div v-if="localMapping.valueKey" class="flex justify-between items-center">
                                         <span class="text-sm font-bold">Extracted Value:</span>
-                                        <span
-                                            class="font-mono bg-base-300 px-2 py-1 rounded text-sm">{{
-                                                extractValue(protoDecodePreview,
-                                                    localMapping.valueKey) }}</span>
+                                        <span class="font-mono bg-base-300 px-2 py-1 rounded text-sm">{{
+                                            extractValue(protoDecodePreview,
+                                                localMapping.valueKey) }}</span>
                                     </div>
                                     <div class="collapse collapse-arrow border border-base-300 bg-base-100 rounded-box">
                                         <input type="checkbox" checked />
@@ -699,20 +686,17 @@ const updatePreview = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <div v-else-if="protoDecodeError"
-                                    class="alert alert-warning p-2 text-xs">
+                                <div v-else-if="protoDecodeError" class="alert alert-warning p-2 text-xs">
                                     {{ protoDecodeError }}
                                 </div>
-                                <div v-else
-                                    class="text-center p-3 border border-dashed rounded opacity-50 text-sm">
+                                <div v-else class="text-center p-3 border border-dashed rounded opacity-50 text-sm">
                                     No binary data received on this topic yet.
                                 </div>
                             </div>
 
                             <div class="form-control w-full">
                                 <label class="label"><span class="label-text">Description</span></label>
-                                <textarea v-model="localMapping.description"
-                                    class="textarea textarea-bordered h-24"
+                                <textarea v-model="localMapping.description" class="textarea textarea-bordered h-24"
                                     placeholder="Optional notes..."></textarea>
                             </div>
 
@@ -722,11 +706,10 @@ const updatePreview = () => {
                                 <div v-if="previewValue" class="space-y-2 p-4 bg-base-200 rounded-lg">
                                     <div class="flex justify-between">
                                         <span class="font-bold">Extracted Value:</span>
-                                        <span
-                                            class="font-mono bg-base-300 px-2 rounded">{{ previewValue.extracted }}</span>
+                                        <span class="font-mono bg-base-300 px-2 rounded">{{ previewValue.extracted
+                                            }}</span>
                                     </div>
-                                    <div
-                                        class="collapse collapse-arrow border border-base-300 bg-base-100 rounded-box">
+                                    <div class="collapse collapse-arrow border border-base-300 bg-base-100 rounded-box">
                                         <input type="checkbox" />
                                         <div class="collapse-title text-sm font-medium">Raw Payload</div>
                                         <div class="collapse-content">
@@ -735,8 +718,7 @@ const updatePreview = () => {
                                         </div>
                                     </div>
                                 </div>
-                                <div v-else
-                                    class="text-center p-4 border border-dashed rounded opacity-50">
+                                <div v-else class="text-center p-4 border border-dashed rounded opacity-50">
                                     No data received on this topic yet.
                                 </div>
                             </template>

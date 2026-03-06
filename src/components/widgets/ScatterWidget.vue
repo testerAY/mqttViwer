@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useMqttStore } from '../../stores/useMqttStore';
 import type { WidgetConfig } from '../../types/dashboard';
 import type { MqttMessage } from '../../types/mqtt';
@@ -19,14 +19,20 @@ const props = defineProps<{
 }>();
 
 const mqttStore = useMqttStore();
-const history = ref<number[][]>([]);
 const maxPoints = 200;
+// Ring buffer for O(1) append/evict instead of O(n) shift()
+const _ringBuffer: number[][] = new Array(maxPoints);
+let _ringHead = 0; // next write index
+let _ringCount = 0;
+const history = ref<number[][]>([]);
 
 const currentX = ref<number | null>(null);
 const currentY = ref<number | null>(null);
 
 watch(() => props.clearToken, (token, prev) => {
     if (token !== undefined && token !== prev) {
+        _ringHead = 0;
+        _ringCount = 0;
         history.value = [];
         currentX.value = null;
         currentY.value = null;
@@ -64,14 +70,18 @@ const processMessage = (msg: MqttMessage, topic: string) => {
         const startOfToday = new Date().setHours(0, 0, 0, 0);
 
         if (timestamp >= startOfToday) {
-            history.value.push([currentX.value, currentY.value, timestamp]);
+            // Ring buffer: O(1) insert, overwrites oldest when full
+            _ringBuffer[_ringHead] = [currentX.value, currentY.value, timestamp];
+            _ringHead = (_ringHead + 1) % maxPoints;
+            if (_ringCount < maxPoints) _ringCount++;
 
-            // Prune old data (older than today)
-            if (history.value.length > 0 && history.value[0][2] < startOfToday) {
-                history.value = history.value.filter(p => p[2] >= startOfToday);
+            // Rebuild display array from ring buffer in correct order
+            const result: number[][] = [];
+            const start = _ringCount < maxPoints ? 0 : _ringHead;
+            for (let i = 0; i < _ringCount; i++) {
+                result.push(_ringBuffer[(start + i) % maxPoints]);
             }
-
-            if (history.value.length > maxPoints) history.value.shift();
+            history.value = result;
         }
     }
 };

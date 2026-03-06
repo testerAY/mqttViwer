@@ -2,31 +2,36 @@
   <div class="w-full h-full flex flex-col overflow-hidden">
     <!-- Video area -->
     <div class="flex-1 relative bg-black overflow-hidden flex items-center justify-center min-h-0">
-      <img
-        v-if="streamUrl && isStreaming"
-        :src="streamUrl"
-        class="max-w-full max-h-full object-contain"
-        @error="handleStreamError"
-      />
+      <img v-if="streamUrl && isStreaming" :src="streamUrl" class="max-w-full max-h-full object-contain"
+        @error="handleStreamError" />
       <div v-else-if="isConnecting" class="flex flex-col items-center gap-2 text-base-content/60">
         <span class="loading loading-spinner loading-md"></span>
-        <span class="text-sm">Connecting...</span>
+        <span class="text-sm">{{ settings.sourceMode === 'receive' ? 'Waiting for camera...' : 'Connecting...' }}</span>
       </div>
       <div v-else class="flex flex-col items-center gap-3">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-base-content/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-base-content/30" fill="none" viewBox="0 0 24 24"
+          stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
         </svg>
-        <button @click="startStream" class="btn btn-primary btn-sm" :disabled="!hasRtspUrl">
+        <div v-if="!rtspStore.serverStatus.running && rtspStore.serverStatus.error" class="text-error text-xs max-w-56 text-center">
+          MJPEG server not running: {{ rtspStore.serverStatus.error }}
+        </div>
+        <button v-else @click="startStream" class="btn btn-primary btn-sm" :disabled="!hasRtspUrl">
           Connect
         </button>
-        <p v-if="!hasRtspUrl" class="text-warning text-xs">Set RTSP URL in widget settings</p>
+        <p v-if="!hasRtspUrl" class="text-warning text-xs">
+          {{ missingUrlMessage }}
+        </p>
         <p v-if="error" class="text-error text-xs max-w-48 text-center">{{ error }}</p>
       </div>
 
       <!-- Recording indicator -->
       <div v-if="isRecording" class="absolute top-2 right-2">
         <span class="badge badge-error badge-sm gap-1 animate-pulse">
-          <svg class="w-2 h-2 fill-current" viewBox="0 0 8 8"><circle cx="4" cy="4" r="4"/></svg>
+          <svg class="w-2 h-2 fill-current" viewBox="0 0 8 8">
+            <circle cx="4" cy="4" r="4" />
+          </svg>
           REC
         </span>
       </div>
@@ -34,27 +39,15 @@
 
     <!-- Controls bar -->
     <div v-if="showControls" class="flex items-center gap-1 px-2 py-1 bg-base-200 border-t border-base-300 shrink-0">
-      <button
-        @click="toggleStream"
-        class="btn btn-xs"
-        :class="isStreaming ? 'btn-error btn-outline' : 'btn-primary'"
-        :disabled="isConnecting || !hasRtspUrl"
-      >
+      <button @click="toggleStream" class="btn btn-xs" :class="isStreaming ? 'btn-error btn-outline' : 'btn-primary'"
+        :disabled="isConnecting || !hasRtspUrl">
         {{ isStreaming ? 'Stop' : 'Start' }}
       </button>
-      <button
-        @click="toggleRecord"
-        class="btn btn-xs"
-        :class="isRecording ? 'btn-error' : 'btn-outline'"
-        :disabled="!isStreaming"
-      >
+      <button @click="toggleRecord" class="btn btn-xs" :class="isRecording ? 'btn-error' : 'btn-outline'"
+        :disabled="!isStreaming">
         {{ isRecording ? 'Stop Rec' : 'Record' }}
       </button>
-      <button
-        @click="snapshot"
-        class="btn btn-xs btn-outline"
-        :disabled="!isStreaming"
-      >
+      <button @click="snapshot" class="btn btn-xs btn-outline" :disabled="!isStreaming">
         Snapshot
       </button>
       <div class="flex-1"></div>
@@ -93,9 +86,20 @@ const settings = computed<RtspWidgetSettings>(() => ({
   reconnectDelaySecs: props.config.settings?.reconnectDelaySecs ?? 3,
   showControls: props.config.settings?.showControls ?? true,
   autoStart: props.config.settings?.autoStart ?? false,
+  sourceMode: props.config.settings?.sourceMode ?? 'pull',
+  receivePath: props.config.settings?.receivePath ?? '',
+  receivePushPort: props.config.settings?.receivePushPort ?? 18802,
 }));
 
-const hasRtspUrl = computed(() => !!settings.value.rtspUrl);
+const hasRtspUrl = computed(() => {
+  if (settings.value.sourceMode === 'receive') {
+    return !!settings.value.receivePath;
+  }
+  return !!settings.value.rtspUrl;
+});
+const missingUrlMessage = computed(() => {
+  return settings.value.sourceMode === 'receive' ? 'Set Stream Path in widget settings' : 'Set RTSP URL in widget settings';
+});
 const showControls = computed(() => settings.value.showControls);
 
 const streamState = computed(() => rtspStore.getOrCreate(props.config.id));
@@ -105,11 +109,26 @@ const isConnecting = computed(() => streamState.value.isConnecting);
 const isRecording = computed(() => streamState.value.isRecording);
 const error = computed(() => streamState.value.error);
 
+function buildEffectiveSettings(): RtspWidgetSettings {
+  const s = { ...settings.value };
+  if (s.sourceMode === 'receive' && s.receivePath) {
+    // In receive mode, ffmpeg listens on this port for incoming RTSP push
+    const port = s.receivePushPort || 18802;
+    s.rtspUrl = `rtsp://0.0.0.0:${port}/${s.receivePath}`;
+    s.mode = 'push';
+  } else {
+    s.mode = 'pull';
+  }
+  return s;
+}
+
 async function startStream() {
   try {
     reconnectAttempts.value = 0;
-    await rtspStore.startStream(props.config.id, settings.value);
+    const url = await rtspStore.startStream(props.config.id, buildEffectiveSettings());
+    console.log('[RTSP Widget] Stream started, URL:', url, 'isStreaming:', streamState.value.isStreaming);
   } catch (e: any) {
+    console.error('[RTSP Widget] Stream failed:', e);
     toastStore.addToast(`Failed to connect: ${e}`, 'error');
   }
 }
@@ -154,7 +173,8 @@ async function snapshot() {
   }
 }
 
-function handleStreamError() {
+function handleStreamError(event?: Event) {
+  console.error('[RTSP Widget] Stream img error:', event ?? 'reconnect failed', 'URL:', streamUrl.value);
   if (!isStreaming.value) return;
 
   if (reconnectAttempts.value < maxReconnectAttempts) {
@@ -163,7 +183,7 @@ function handleStreamError() {
     reconnectTimer.value = setTimeout(async () => {
       if (isStreaming.value) {
         try {
-          await rtspStore.startStream(props.config.id, settings.value);
+          await rtspStore.startStream(props.config.id, buildEffectiveSettings());
           reconnectAttempts.value = 0;
         } catch {
           handleStreamError();

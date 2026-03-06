@@ -43,6 +43,10 @@ export function useWidgetData(config: Ref<WidgetConfig>) {
   let lastDecodedPayload = '';
   let lastDecodedResult: Record<string, any> | null = null;
 
+  // Memoize JSON parse to avoid redundant parsing on every computed access
+  let lastJsonPayload = '';
+  let lastJsonResult: any = null;
+
   const currentValue = computed(() => {
     if (!resolvedTopic.value) return null;
 
@@ -81,8 +85,11 @@ export function useWidgetData(config: Ref<WidgetConfig>) {
     }
 
     try {
-      const payloadJson = JSON.parse(msg.payload);
-      return extractValue(payloadJson, resolvedValueKey.value);
+      if (msg.payload !== lastJsonPayload) {
+        lastJsonResult = JSON.parse(msg.payload);
+        lastJsonPayload = msg.payload;
+      }
+      return extractValue(lastJsonResult, resolvedValueKey.value);
     } catch (e) {
       return msg.payload; // Raw value if not JSON
     }

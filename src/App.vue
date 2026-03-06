@@ -12,7 +12,18 @@ import ToastContainer from './components/ToastContainer.vue';
 import { usePluginStore } from './stores/usePluginStore';
 
 const mqttStore = useMqttStore();
-const { isConnected } = storeToRefs(mqttStore);
+const { isConnected, messageRate, lastMessageTime, connectionStale } = storeToRefs(mqttStore);
+
+// B1: Elapsed time since last message (updated every second)
+const lastMsgAgo = ref('');
+setInterval(() => {
+  if (lastMessageTime.value > 0) {
+    const sec = Math.floor((Date.now() - lastMessageTime.value) / 1000);
+    lastMsgAgo.value = sec < 60 ? `${sec}s ago` : `${Math.floor(sec / 60)}m ago`;
+  } else {
+    lastMsgAgo.value = '';
+  }
+}, 1000);
 
 const dashboardStore = useDashboardStore();
 const { isEditing } = storeToRefs(dashboardStore);
@@ -23,13 +34,6 @@ const showSettings = ref(false);
 const showDataMappings = ref(false);
 const showDataManagement = ref(false);
 
-const publishTopic = ref('test/topic');
-const publishPayload = ref('Hello Tauri!');
-
-const handlePublish = async () => {
-  if (!publishTopic.value || !publishPayload.value) return;
-  await mqttStore.publishMessage(publishTopic.value, publishPayload.value);
-};
 
 const testHistory = async () => {
   console.log('Fetching history...');
@@ -195,8 +199,24 @@ onMounted(async () => {
             <input type="checkbox" class="toggle toggle-primary" :checked="isEditing" @change="toggleEditMode" />
           </label>
         </div>
-        <div class="badge" :class="isConnected ? 'badge-success' : 'badge-error'">
-          {{ isConnected ? 'Connected' : 'Disconnected' }}
+        <!-- B1: Rich connection status -->
+        <div class="flex items-center gap-2">
+          <div v-if="isConnected && messageRate > 0" class="text-xs opacity-70 text-right leading-tight">
+            <div>{{ messageRate }} msg/s</div>
+            <div v-if="lastMsgAgo">{{ lastMsgAgo }}</div>
+          </div>
+          <div class="badge gap-1" :class="{
+            'badge-success': isConnected && !connectionStale,
+            'badge-warning': isConnected && connectionStale,
+            'badge-error': !isConnected
+          }" :title="connectionStale ? 'No messages received for 5+ seconds' : ''">
+            <span class="inline-block w-2 h-2 rounded-full" :class="{
+              'bg-success animate-pulse': isConnected && !connectionStale,
+              'bg-warning animate-pulse': isConnected && connectionStale,
+              'bg-error': !isConnected
+            }"></span>
+            {{ !isConnected ? 'Disconnected' : connectionStale ? 'Stale' : 'Connected' }}
+          </div>
         </div>
       </div>
     </header>

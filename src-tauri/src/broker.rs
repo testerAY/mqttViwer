@@ -8,7 +8,7 @@ const MAX_OUTGOING_PACKET_COUNT: u64 = 2048;
 const MAX_SEGMENT_SIZE: usize = 1048576;
 const MAX_SEGMENT_COUNT: usize = 10;
 const CONNECTION_TIMEOUT_MS: u16 = 60000;
-const MAX_PAYLOAD_SIZE: usize = 2048;
+const MAX_PAYLOAD_SIZE: usize = 262144; // 256KB
 const MAX_INFLIGHT_COUNT: usize = 100;
 
 pub async fn start_broker(port: u16) {

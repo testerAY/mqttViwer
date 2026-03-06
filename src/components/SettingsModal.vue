@@ -121,6 +121,7 @@ const handleSave = async () => {
           <input v-model.number="localConfig.retention.days" type="number" class="input input-bordered" min="1" />
         </div>
 
+
       </div>
 
       <div class="modal-action">

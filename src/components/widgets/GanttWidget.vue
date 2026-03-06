@@ -158,7 +158,7 @@ const getColor = (str: string) => {
     return '#' + '00000'.substring(0, 6 - c.length) + c;
 };
 
-const renderItem = (params: any, api: any) => {
+const renderItem = (_params: any, api: any) => {
     const categoryIndex = api.value(0);
     const start = api.coord([api.value(1), categoryIndex]);
     const end = api.coord([api.value(2), categoryIndex]);

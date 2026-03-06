@@ -137,7 +137,10 @@ const processMessage = (msg: MqttMessage, topic: string) => {
         const effectiveCutoff = Math.max(cutoff, startOfToday);
 
         if (arr.length > 0 && arr[0].timestamp < effectiveCutoff) {
-          seriesHistory.value[idx] = arr.filter(p => p.timestamp >= effectiveCutoff);
+          // Use splice instead of filter to avoid creating new arrays (reduces GC pressure)
+          let spliceEnd = 0;
+          while (spliceEnd < arr.length && arr[spliceEnd].timestamp < effectiveCutoff) spliceEnd++;
+          if (spliceEnd > 0) arr.splice(0, spliceEnd);
         }
       }
     }
@@ -164,22 +167,50 @@ const extraTopics = computed(() => {
   return Array.from(set);
 });
 
-watch(() => extraTopics.value.map(t => mqttStore.lastMessages[t]), (newMsgs, oldMsgs) => {
-  newMsgs.forEach((msg, i) => {
-    const topic = extraTopics.value[i];
-    const oldMsg = oldMsgs ? oldMsgs[i] : undefined;
+// Extra topics watcher with throttle (A2: matches WidgetHost throttle behavior)
+let extraThrottleTimer: ReturnType<typeof setTimeout> | null = null;
+let lastExtraUpdate = 0;
 
-    if (msg && (!oldMsg || msg.timestamp !== oldMsg.timestamp)) {
-      processMessage(msg, topic);
-    }
-  });
+watch(() => extraTopics.value.map(t => mqttStore.lastMessages[t]), (newMsgs, oldMsgs) => {
+  const interval = props.config.updateInterval || 0;
+
+  const doUpdate = () => {
+    newMsgs.forEach((msg, i) => {
+      const topic = extraTopics.value[i];
+      const oldMsg = oldMsgs ? oldMsgs[i] : undefined;
+      if (msg && (!oldMsg || msg.timestamp !== oldMsg.timestamp)) {
+        processMessage(msg, topic);
+      }
+    });
+    lastExtraUpdate = Date.now();
+  };
+
+  if (interval <= 0) {
+    doUpdate();
+    return;
+  }
+
+  const elapsed = Date.now() - lastExtraUpdate;
+  if (elapsed >= interval) {
+    doUpdate();
+    if (extraThrottleTimer) { clearTimeout(extraThrottleTimer); extraThrottleTimer = null; }
+  } else {
+    if (extraThrottleTimer) clearTimeout(extraThrottleTimer);
+    extraThrottleTimer = setTimeout(doUpdate, interval - elapsed);
+  }
 });
 
-// Animation Loop
+// Animation Loop - throttled to ~150ms instead of every frame
 const now = ref(Date.now());
 let animFrame: number;
+let lastNowUpdate = 0;
+const NOW_UPDATE_INTERVAL = 150; // ms
 const updateNow = () => {
-  now.value = Date.now();
+  const t = Date.now();
+  if (t - lastNowUpdate >= NOW_UPDATE_INTERVAL) {
+    now.value = t;
+    lastNowUpdate = t;
+  }
   animFrame = requestAnimationFrame(updateNow);
 };
 

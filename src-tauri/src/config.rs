@@ -59,12 +59,18 @@ pub struct RtspConfig {
     pub ffmpeg_path: Option<String>,
     #[serde(default = "default_rtsp_server_port")]
     pub server_port: u16,
+    #[serde(default = "default_rtsp_push_port")]
+    pub rtsp_push_port: u16,
     pub recordings_dir: Option<String>,
     pub snapshots_dir: Option<String>,
 }
 
 fn default_rtsp_server_port() -> u16 {
-    18800
+    18801
+}
+
+fn default_rtsp_push_port() -> u16 {
+    18802
 }
 
 impl Default for RtspConfig {
@@ -72,6 +78,7 @@ impl Default for RtspConfig {
         Self {
             ffmpeg_path: None,
             server_port: default_rtsp_server_port(),
+            rtsp_push_port: default_rtsp_push_port(),
             recordings_dir: None,
             snapshots_dir: None,
         }
